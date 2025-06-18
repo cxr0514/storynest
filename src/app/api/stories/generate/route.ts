@@ -83,11 +83,13 @@ export async function POST(req: NextRequest) {
         moralLesson,
         userId: session.user.id,
         childProfileId,
+        updatedAt: new Date(),
         StoryPage: {
           create: storyData.pages.map(page => ({
             pageNumber: page.pageNumber,
             content: page.content,
-            characterDescriptions: page.characterDescriptions
+            characterDescriptions: page.characterDescriptions,
+            updatedAt: new Date()
           }))
         },
         StoryCharacter: {
@@ -189,7 +191,8 @@ async function generateIllustrationsForStory(
           url: s3Url,
           prompt,
           storyId,
-          storyPageId: storyPage.id
+          storyPageId: storyPage.id,
+          updatedAt: new Date()
         }
       })
     }

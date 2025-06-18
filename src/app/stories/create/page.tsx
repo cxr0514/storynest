@@ -7,7 +7,7 @@ import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { AnimatedPage } from '@/components/ui/animated-page'
-import { useSubscription } from '@/hooks/useSubscription'
+// import { useSubscription } from '@/hooks/useSubscription' // Temporarily disabled
 import { ChildProfile, Character, StoryTheme } from '@/types'
 
 export default function CreateStory() {
@@ -15,10 +15,11 @@ export default function CreateStory() {
   const searchParams = useSearchParams()
   const preSelectedChildId = searchParams.get('childId')
   const { data: session } = useSession()
-  const { subscription, loading: subscriptionLoading } = useSubscription()
+  // const { subscription, loading: subscriptionLoading } = useSubscription() // Temporarily disabled
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   
   // Form state
@@ -39,12 +40,32 @@ export default function CreateStory() {
     }
   }, [session, router])
 
+  // Emergency timeout to prevent infinite loading
+  useEffect(() => {
+    const emergencyTimeout = setTimeout(() => {
+      console.log('🚨 Emergency timeout triggered - stopping infinite loading')
+      setLoadingTimeout(true)
+      setIsLoading(false)
+    }, 15000) // 15 seconds max loading time
+
+    return () => clearTimeout(emergencyTimeout)
+  }, [router])
+
   useEffect(() => {
     console.log('🔄 Starting loadChildProfiles...')
     const loadChildProfiles = async () => {
       try {
         console.log('📡 Fetching child profiles...')
-        const response = await fetch('/api/child-profiles')
+        
+        // Add timeout protection
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        
+        const response = await fetch('/api/child-profiles', {
+          signal: controller.signal
+        })
+        clearTimeout(timeoutId)
+        
         console.log('📡 Child profiles response:', response.status)
         
         if (response.ok) {
@@ -63,7 +84,16 @@ export default function CreateStory() {
             
             // Load characters for the selected child
             console.log('📡 Fetching characters for child:', targetChildId)
-            const charactersResponse = await fetch(`/api/characters?childProfileId=${targetChildId}`)
+            
+            // Add timeout protection for characters API
+            const charactersController = new AbortController()
+            const charactersTimeoutId = setTimeout(() => charactersController.abort(), 10000)
+            
+            const charactersResponse = await fetch(`/api/characters?childProfileId=${targetChildId}`, {
+              signal: charactersController.signal
+            })
+            clearTimeout(charactersTimeoutId)
+            
             console.log('📡 Characters response:', charactersResponse.status)
             
             if (charactersResponse.ok) {
@@ -82,20 +112,38 @@ export default function CreateStory() {
         }
       } catch (error) {
         console.error('💥 Error loading child profiles:', error)
-        setErrors(['Failed to load child profiles: ' + (error instanceof Error ? error.message : 'Unknown error')])
+        
+        if (error instanceof Error && error.name === 'AbortError') {
+          setErrors(['Request timed out. Please check your connection and try again.'])
+        } else {
+          setErrors(['Failed to load child profiles: ' + (error instanceof Error ? error.message : 'Unknown error')])
+        }
       } finally {
         console.log('✅ Loading complete, setting isLoading to false')
         setIsLoading(false)
       }
     }
 
-    if (session) {
+    // Add additional safety checks
+    if (session?.user?.id) {
       console.log('👤 User authenticated, loading data...')
       loadChildProfiles()
+    } else if (session === null) {
+      console.log('❌ No session found, redirecting to login...')
+      setIsLoading(false)
+      router.push('/auth/signin')
     } else {
       console.log('⏳ Waiting for authentication...')
+      // Set a timeout to prevent infinite loading
+      setTimeout(() => {
+        if (!session?.user?.id) {
+          console.log('⏰ Authentication timeout, redirecting...')
+          setIsLoading(false)
+          router.push('/auth/signin')
+        }
+      }, 5000)
     }
-  }, [session, preSelectedChildId])
+  }, [session, preSelectedChildId, router])
 
   useEffect(() => {
     const loadCharactersForChild = async () => {
@@ -156,26 +204,26 @@ export default function CreateStory() {
       moralLesson
     })
 
-    // Check subscription limits
-    if (subscription && !subscriptionLoading) {
-      const { usage } = subscription
+    // Check subscription limits - temporarily disabled
+    // if (subscription && !subscriptionLoading) {
+    //   const { usage } = subscription
       
-      // Check if user has reached story limit
-      if (usage.storiesLimit !== -1 && usage.storiesThisMonth >= usage.storiesLimit && usage.credits === 0) {
-        setErrors([
-          `You've reached your monthly limit of ${usage.storiesLimit} stories. `,
-          'Upgrade your plan or purchase credits to continue creating stories.'
-        ])
-        return
-      }
+    //   // Check if user has reached story limit
+    //   if (usage.storiesLimit !== -1 && usage.storiesThisMonth >= usage.storiesLimit && usage.credits === 0) {
+    //     setErrors([
+    //       `You've reached your monthly limit of ${usage.storiesLimit} stories. `,
+    //       'Upgrade your plan or purchase credits to continue creating stories.'
+    //     ])
+    //     return
+    //   }
 
-      // Warn if close to limit
-      if (usage.storiesLimit !== -1 && usage.storiesThisMonth >= usage.storiesLimit - 1 && usage.credits === 0) {
-        setErrors([
-          'This will be your last story this month. Consider upgrading your plan for unlimited stories.'
-        ])
-      }
-    }
+    //   // Warn if close to limit
+    //   if (usage.storiesLimit !== -1 && usage.storiesThisMonth >= usage.storiesLimit - 1 && usage.credits === 0) {
+    //     setErrors([
+    //       'This will be your last story this month. Consider upgrading your plan for unlimited stories.'
+    //     ])
+    //   }
+    // }
     
     setIsGenerating(true)
     setErrors([])
@@ -220,7 +268,7 @@ export default function CreateStory() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !loadingTimeout) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sky-200 via-purple-100 to-pink-200 relative overflow-hidden">
         {/* Floating decorative elements */}
@@ -239,6 +287,60 @@ export default function CreateStory() {
                 <span className="text-white text-3xl">📚</span>
               </div>
               <p className="text-purple-700 font-medium text-lg">✨ Preparing your story creation workshop ✨</p>
+              <Button 
+                onClick={() => {
+                  console.log('🔄 Manual retry triggered')
+                  setIsLoading(false)
+                  setLoadingTimeout(false)
+                }} 
+                className="mt-4"
+                variant="outline"
+              >
+                Taking too long? Click to continue anyway
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Show error state if loading timed out
+  if (loadingTimeout) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-200 via-purple-100 to-pink-200 relative overflow-hidden">
+        <Header />
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-20">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-orange-500 rounded-full flex items-center justify-center mb-4 mx-auto shadow-lg">
+                <span className="text-white text-3xl">⚠️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-red-700 mb-2">Loading Timeout</h2>
+              <p className="text-red-600 mb-4">The page took too long to load. This might be because:</p>
+              <ul className="text-red-600 text-left max-w-md mx-auto mb-6 space-y-1">
+                <li>• The server isn&apos;t running</li>
+                <li>• You need to sign in first</li>
+                <li>• No sample data exists</li>
+              </ul>
+              <div className="space-x-4">
+                <Button 
+                  onClick={() => router.push('/auth/signin')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  🔐 Sign In
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setLoadingTimeout(false)
+                    setIsLoading(true)
+                    window.location.reload()
+                  }}
+                  variant="outline"
+                >
+                  🔄 Retry
+                </Button>
+              </div>
             </div>
           </div>
         </main>

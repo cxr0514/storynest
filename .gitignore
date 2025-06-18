@@ -39,3 +39,37 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Database files
+*.db
+*.sqlite
+prisma/dev.db*
+
+# Temporary debugging and testing files
+debug-*.js
+test-*.js
+quick-*.js
+check-*.js
+create-*.js
+fix-*.js
+diagnose-*.js
+restart-*.sh
+start-*.sh
+*.js.bak
+
+# Work-in-progress documentation
+*_FIXES_*.md
+*_COMPLETION_*.md
+*_STATUS_*.md
+*_SUMMARY_*.md
+*_GUIDE_*.md
+*_TESTING_*.md
+progress.log
+cookies.txt
+
+# Cache and temporary files
+.cache/
+.npm/
+.yarn/
+*.tmp
+*.temp
