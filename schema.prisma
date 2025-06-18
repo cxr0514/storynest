@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Character {
+  id                     String           @id @default(uuid())
+  name                   String
+  species                String
+  age                    String
+  physicalFeatures       String
+  clothingAccessories    String
+  personalityTraits      String[]
+  personalityDescription String
+  specialAbilities       String
+  favoriteThings         String
+  speakingStyle          String
+  favoritePhrases        String[]
+  ageGroups              String[]
+  appearances            Json[]
+  consistencyScore       Float            @default(0)
+  userId                 String
+  childProfileId         String
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime
+  ChildProfile           ChildProfile     @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  User                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  StoryCharacter         StoryCharacter[]
+}
+
+model ChildProfile {
+  id        String      @id @default(uuid())
+  name      String
+  age       Int
+  interests String[]
+  userId    String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+  Character Character[]
+  User      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Story     Story[]
+}
+
+model Illustration {
+  id          String    @id @default(uuid())
+  url         String
+  prompt      String
+  storyId     String?
+  storyPageId String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Story       Story?    @relation(fields: [storyId], references: [id])
+  StoryPage   StoryPage @relation(fields: [storyPageId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Story {
+  id              String           @id @default(uuid())
+  title           String
+  theme           String
+  summary         String
+  moralLesson     String?
+  currentPage     Int              @default(1)
+  isCompleted     Boolean          @default(false)
+  readingProgress Float            @default(0)
+  userId          String
+  childProfileId  String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime
+  Illustration    Illustration[]
+  ChildProfile    ChildProfile     @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  User            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  StoryCharacter  StoryCharacter[]
+  StoryPage       StoryPage[]
+}
+
+model StoryCharacter {
+  id          String    @id @default(uuid())
+  storyId     String
+  characterId String
+  Character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  Story       Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, characterId])
+}
+
+model StoryPage {
+  id                    String        @id @default(uuid())
+  pageNumber            Int
+  content               String
+  characterDescriptions Json
+  storyId               String
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime
+  Illustration          Illustration?
+  Story                 Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id        String    @id @default(uuid())
+  plan      String
+  status    String
+  stripeId  String?   @unique
+  userId    String    @unique
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  User      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String?
+  email         String         @unique
+  emailVerified DateTime?
+  image         String?
+  credits       Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  accounts      Account[]
+  characters    Character[]
+  childProfiles ChildProfile[]
+  sessions      Session[]
+  stories       Story[]
+  subscription  Subscription?
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

@@ -1,0 +1,636 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { Header } from '@/components/layout/header'
+import { Button } from '@/components/ui/button'
+import { AnimatedPage } from '@/components/ui/animated-page'
+import { useSubscription } from '@/hooks/useSubscription'
+import { SubscriptionStatus } from '@/components/subscription-status'
+import { AdvancedCharacterForm } from '@/components/advanced-character-form'
+import { ChildProfileModal } from '@/components/child-profile-modal'
+
+interface ChildProfile {
+  id: string
+  name: string
+  age: number
+}
+
+export default function CreateCharacter() {
+  const router = useRouter()
+  const { data: session } = useSession()
+  const { subscription } = useSubscription()
+  const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
+  const [showChildProfileModal, setShowChildProfileModal] = useState(false)
+  
+  // Enhanced form state with advanced character features
+  const [formData, setFormData] = useState({
+    // Basic character info
+    name: '',
+    species: '',
+    age: '',
+    physicalFeatures: '',
+    clothingAccessories: '',
+    personalityTraits: '',
+    personalityDescription: '',
+    specialAbilities: '',
+    favoriteThings: '',
+    speakingStyle: '',
+    favoritePhrases: '',
+    childProfileId: '',
+    
+    // Advanced Beta Phase features
+    selectedTraits: [],
+    dominantMood: '',
+    backstory: '',
+    goals: '',
+    fears: '',
+    specialMemories: '',
+    relationships: '',
+    bestFriendType: '',
+    friendshipStyle: '',
+    visualStyle: 'cartoon',
+    colorPreferences: '',
+    signatureElements: '',
+    developmentArc: '',
+    storyRole: 'protagonist',
+    complexityLevel: 3,
+    moralCompass: ''
+  })
+
+  // Check if user has reached character limit
+  const isCharacterLimitReached = subscription?.usage?.charactersLimit !== -1 && 
+    subscription?.usage?.charactersLimit !== undefined &&
+    subscription?.usage?.charactersCount !== undefined &&
+    subscription?.usage?.charactersCount >= subscription?.usage?.charactersLimit
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!session) {
+      router.push('/auth/signin')
+      return
+    }
+  }, [session, router])
+
+  useEffect(() => {
+    const loadChildProfiles = async () => {
+      try {
+        const response = await fetch('/api/child-profiles')
+        if (response.ok) {
+          const profiles = await response.json()
+          setChildProfiles(profiles)
+          if (profiles.length > 0) {
+            setFormData(prev => ({ ...prev, childProfileId: profiles[0].id }))
+          }
+        } else {
+          setErrors(['Failed to load child profiles'])
+        }
+      } catch {
+        setErrors(['Error loading child profiles'])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (session) {
+      loadChildProfiles()
+    }
+  }, [session])
+
+  // Handle child profile creation success
+  const handleChildProfileSuccess = async () => {
+    setShowChildProfileModal(false)
+    // Reload child profiles
+    try {
+      const response = await fetch('/api/child-profiles')
+      if (response.ok) {
+        const profiles = await response.json()
+        setChildProfiles(profiles)
+        if (profiles.length > 0) {
+          setFormData(prev => ({ ...prev, childProfileId: profiles[0].id }))
+        }
+      }
+    } catch (error) {
+      console.error('Error reloading child profiles:', error)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    // Clear errors when user starts typing
+    if (errors.length > 0) {
+      setErrors([])
+    }
+  }
+
+  const handleAdvancedFormUpdate = (field: string, value: unknown) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear errors when user starts typing
+    if (errors.length > 0) {
+      setErrors([])
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setErrors([])
+
+    try {
+      // Check character limit first
+      if (isCharacterLimitReached) {
+        setErrors(['You have reached your character limit. Please upgrade your plan to create more characters.'])
+        setIsSubmitting(false)
+        return
+      }
+
+      // Validate required fields
+      const requiredFields = ['name', 'species', 'age', 'physicalFeatures', 'personalityDescription', 'childProfileId']
+      const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData])
+      
+      if (missingFields.length > 0) {
+        setErrors(['Please fill in all required fields'])
+        setIsSubmitting(false)
+        return
+      }
+
+      // Enhanced character data with Beta Phase features
+      const characterData = {
+        ...formData,
+        // Parse legacy fields
+        personalityTraits: formData.selectedTraits?.length > 0 
+          ? formData.selectedTraits 
+          : formData.personalityTraits.split(',').map(trait => trait.trim()).filter(Boolean),
+        favoritePhrases: formData.favoritePhrases.split(',').map(phrase => phrase.trim()).filter(Boolean),
+        ageGroups: ['3-6', '7-10'], // Default age groups
+        appearances: [],
+        
+        // Beta Phase advanced features
+        advancedFeatures: {
+          dominantMood: formData.dominantMood,
+          backstory: formData.backstory,
+          goals: formData.goals,
+          fears: formData.fears,
+          specialMemories: formData.specialMemories,
+          relationships: formData.relationships,
+          bestFriendType: formData.bestFriendType,
+          friendshipStyle: formData.friendshipStyle,
+          visualStyle: formData.visualStyle,
+          colorPreferences: formData.colorPreferences,
+          signatureElements: formData.signatureElements,
+          developmentArc: formData.developmentArc,
+          storyRole: formData.storyRole,
+          complexityLevel: formData.complexityLevel,
+          moralCompass: formData.moralCompass
+        }
+      }
+
+      const response = await fetch('/api/characters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(characterData),
+      })
+
+      if (response.ok) {
+        router.push('/characters')
+      } else {
+        const errorData = await response.json()
+        if (response.status === 403 && errorData.message) {
+          // Show the detailed character limit message from the API
+          setErrors([errorData.message])
+        } else {
+          setErrors([errorData.error || 'Failed to create character'])
+        }
+      }
+    } catch {
+      setErrors(['Error creating character. Please try again.'])
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!session) {
+    return <div>Redirecting...</div>
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-200 via-purple-100 to-pink-200 relative overflow-hidden">
+        {/* Floating decorative elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 text-4xl animate-float opacity-20">🎭</div>
+          <div className="absolute top-32 right-20 text-3xl animate-bounce-slow opacity-30">⭐</div>
+          <div className="absolute bottom-40 left-16 text-4xl animate-float opacity-25">🎨</div>
+          <div className="absolute bottom-32 right-24 text-3xl animate-bounce-slow opacity-20">✨</div>
+        </div>
+        
+        <Header />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4 mx-auto animate-bounce-gentle shadow-lg">
+              <span className="text-white text-3xl">🎭</span>
+            </div>
+            <p className="text-purple-700 font-medium text-lg">✨ Preparing your character workshop ✨</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <AnimatedPage>
+      <div className="min-h-screen bg-gradient-to-br from-sky-200 via-purple-100 to-pink-200 relative overflow-hidden">
+        {/* Floating decorative elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 text-4xl animate-float opacity-20">🎭</div>
+          <div className="absolute top-32 right-20 text-3xl animate-bounce-slow opacity-30">⭐</div>
+          <div className="absolute top-60 left-1/4 text-5xl animate-float-delayed opacity-15">🌈</div>
+          <div className="absolute bottom-40 left-16 text-4xl animate-float opacity-25">🎨</div>
+          <div className="absolute bottom-32 right-24 text-3xl animate-bounce-slow opacity-20">✨</div>
+          <div className="absolute top-80 right-1/3 text-2xl animate-bounce-gentle opacity-25">🦋</div>
+        </div>
+        
+        <Header />
+        
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-20 relative">
+          <div className="mb-8 animate-fade-in">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 bg-clip-text text-transparent mb-2 animate-text-glow">
+              🎭 Create a Magical Character ✨
+            </h1>
+            <p className="text-purple-700 font-medium text-lg">🌟 Design a character that will grow and shine across multiple stories! 🌈</p>
+            
+            {/* Enhanced Beta Analytics Feature Badge */}
+            <div className="mt-4 flex items-center gap-3">
+              <div className="px-4 py-2 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-white text-sm rounded-full font-medium shadow-lg animate-bounce-gentle">
+                ✨ Character Analytics - New! ✨
+              </div>
+              <span className="text-purple-600 text-sm font-medium">Characters created here support real-time consistency tracking 🎯</span>
+            </div>
+          </div>
+
+          {/* Character Limit Status */}
+          {subscription && (
+            <div className="mb-6 animate-slide-in">
+              <SubscriptionStatus />
+              {subscription.usage.charactersLimit !== -1 && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-800">
+                        Characters Created: {subscription.usage.charactersCount} / {subscription.usage.charactersLimit}
+                      </p>
+                      <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                          style={{ 
+                            width: `${Math.min((subscription.usage.charactersCount / subscription.usage.charactersLimit) * 100, 100)}%` 
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                    {isCharacterLimitReached && (
+                      <Button
+                        onClick={() => router.push('/pricing')}
+                        variant="gradient"
+                        size="sm"
+                        className="ml-4"
+                      >
+                        Upgrade Plan
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Enhanced Character Limit Warning */}
+          {isCharacterLimitReached && (
+            <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border-2 border-yellow-300 text-yellow-800 px-6 py-4 rounded-2xl mb-6 animate-slide-in shadow-lg">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mr-4 shadow-md">
+                  <span className="text-white text-lg">⚠️</span>
+                </div>
+                <div>
+                  <p className="font-bold text-lg">🚫 Character limit reached! 🚫</p>
+                  <p className="text-sm font-medium">You&apos;ve reached your limit of {subscription?.usage?.charactersLimit} characters for the {subscription?.plan} plan. ✨ Upgrade to create more amazing characters! 🎭</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {errors.length > 0 && (
+            <div className="bg-gradient-to-r from-red-100 to-pink-100 border-2 border-red-300 text-red-700 px-6 py-4 rounded-2xl mb-6 animate-slide-in shadow-lg">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-red-400 to-pink-500 rounded-full flex items-center justify-center mr-4 shadow-md">
+                  <span className="text-white text-lg">❌</span>
+                </div>
+                <div>
+                  <ul className="list-disc list-inside font-medium">
+                    {errors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Enhanced No Child Profiles State */}
+          {childProfiles.length === 0 ? (
+            <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-12 text-center shadow-lg border border-white/20 animate-scale-in hover:shadow-xl transition-all duration-300">
+              <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-rose-500 rounded-full flex items-center justify-center mb-6 mx-auto animate-bounce-gentle shadow-lg">
+                <span className="text-white text-3xl">👶</span>
+              </div>
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent mb-3">
+                🌟 Let&apos;s Create a Child Profile First! 🌟
+              </h3>
+              <p className="text-purple-700 font-medium mb-8 text-lg">
+                🎨 You need to create a child profile before designing amazing characters! 🎭
+              </p>
+              <Button 
+                onClick={() => setShowChildProfileModal(true)}
+                className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-3 mx-auto text-lg"
+              >
+                <span className="text-xl">👶</span>
+                Create Child Profile
+                <span className="text-xl">✨</span>
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20 animate-scale-in hover:shadow-xl transition-all duration-300">
+                <div className="space-y-6">
+                  {/* Enhanced Child Profile Selection */}
+                  <div className="scroll-animate" data-animation="fade-up">
+                    <label className="block text-lg font-bold text-purple-700 mb-3 flex items-center gap-2">
+                      <span className="text-xl">👧👦</span>
+                      Child Profile *
+                    </label>
+                    <select
+                      name="childProfileId"
+                      value={formData.childProfileId}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300"
+                      required
+                    >
+                      <option value="">Select a child profile...</option>
+                      {childProfiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name} (Age {profile.age})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                {/* Character Basic Info */}
+                <div className="grid md:grid-cols-2 gap-6 scroll-animate" data-animation="fade-up" data-delay="100">
+                  <div>
+                    <label className="block text-lg font-semibold text-gray-800 mb-3">
+                      Character Name *
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Luna the Wise Owl"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-lg font-semibold text-gray-800 mb-3">
+                      Character Type *
+                    </label>
+                    <select
+                      name="species"
+                      value={formData.species}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300"
+                      required
+                    >
+                      <option value="">Choose character type...</option>
+                      <option value="animal">🐾 Friendly Animal</option>
+                      <option value="human">👤 Human Child</option>
+                      <option value="magical">✨ Magical Creature</option>
+                      <option value="robot">🤖 Friendly Robot</option>
+                      <option value="fairy">🧚 Fairy or Sprite</option>
+                      <option value="other">🌟 Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="scroll-animate" data-animation="fade-up" data-delay="200">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Age *
+                  </label>
+                  <input
+                    type="text"
+                    name="age"
+                    value={formData.age}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Young adult, Child, Ancient"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                    required
+                  />
+                </div>
+
+                {/* Character Appearance */}
+                <div className="scroll-animate" data-animation="fade-up" data-delay="300">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Physical Features *
+                  </label>
+                  <textarea
+                    name="physicalFeatures"
+                    value={formData.physicalFeatures}
+                    onChange={handleInputChange}
+                    placeholder="Describe how the character looks: colors, size, distinctive features..."
+                    className="w-full h-24 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                    required
+                  />
+                </div>
+
+                <div className="scroll-animate" data-animation="fade-up" data-delay="400">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Clothing & Accessories
+                  </label>
+                  <textarea
+                    name="clothingAccessories"
+                    value={formData.clothingAccessories}
+                    onChange={handleInputChange}
+                    placeholder="What does the character wear or carry?"
+                    className="w-full h-24 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                  />
+                </div>
+
+                {/* Personality */}
+                <div className="scroll-animate" data-animation="fade-up" data-delay="500">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Personality Traits
+                  </label>
+                  <input
+                    type="text"
+                    name="personalityTraits"
+                    value={formData.personalityTraits}
+                    onChange={handleInputChange}
+                    placeholder="e.g., kind, brave, curious (separate with commas)"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                  />
+                </div>
+
+                <div className="scroll-animate" data-animation="fade-up" data-delay="600">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Personality Description *
+                  </label>
+                  <textarea
+                    name="personalityDescription"
+                    value={formData.personalityDescription}
+                    onChange={handleInputChange}
+                    placeholder="Describe the character's personality and what makes them special..."
+                    className="w-full h-24 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                    required
+                  />
+                </div>
+
+                <div className="scroll-animate" data-animation="fade-up" data-delay="700">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Special Abilities
+                  </label>
+                  <input
+                    type="text"
+                    name="specialAbilities"
+                    value={formData.specialAbilities}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Can fly, Magic spells, Super strength"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                  />
+                </div>
+
+                <div className="scroll-animate" data-animation="fade-up" data-delay="800">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">
+                    Favorite Things
+                  </label>
+                  <input
+                    type="text"
+                    name="favoriteThings"
+                    value={formData.favoriteThings}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Reading books, Helping friends, Exploring nature"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                  />
+                </div>
+
+                {/* Speaking Style */}
+                <div className="grid md:grid-cols-2 gap-6 scroll-animate" data-animation="fade-up" data-delay="900">
+                  <div>
+                    <label className="block text-lg font-semibold text-gray-800 mb-3">
+                      Speaking Style
+                    </label>
+                    <select
+                      name="speakingStyle"
+                      value={formData.speakingStyle}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300"
+                    >
+                      <option value="">Choose speaking style...</option>
+                      <option value="gentle">🕊️ Gentle and soft</option>
+                      <option value="enthusiastic">⚡ Enthusiastic and energetic</option>
+                      <option value="wise">🦉 Wise and thoughtful</option>
+                      <option value="playful">🎈 Playful and fun</option>
+                      <option value="calm">🌸 Calm and reassuring</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-lg font-semibold text-gray-800 mb-3">
+                      Favorite Phrases
+                    </label>
+                    <input
+                      type="text"
+                      name="favoritePhrases"
+                      value={formData.favoritePhrases}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Let's explore!, Believe in yourself! (separate with commas)"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300 focus:scale-[1.02]"
+                    />
+                  </div>
+                </div>
+
+                {/* Advanced Character Customization (Beta Phase) */}
+                <div className="scroll-animate" data-animation="fade-up" data-delay="1000">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">
+                      🚀 Advanced Character Features
+                    </h3>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                      className="text-sm"
+                    >
+                      {showAdvancedOptions ? 'Hide Advanced' : 'Show Advanced'}
+                    </Button>
+                  </div>
+                  
+                  {showAdvancedOptions && (
+                    <div className="border-t pt-6">
+                      <AdvancedCharacterForm
+                        formData={formData}
+                        onUpdate={handleAdvancedFormUpdate}
+                        childProfiles={childProfiles}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex gap-4 pt-6 scroll-animate" data-animation="fade-up" data-delay="1000">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push('/characters')}
+                    className="px-8 transform hover:scale-105 transition-all duration-200"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || isCharacterLimitReached}
+                    isLoading={isSubmitting}
+                    variant="gradient"
+                    className="px-8 transform hover:scale-105 transition-all duration-200"
+                  >
+                    {isCharacterLimitReached 
+                      ? '🔒 Character Limit Reached' 
+                      : isSubmitting 
+                        ? 'Creating Character...' 
+                        : '✨ Create Character'
+                    }
+                  </Button>
+                </div>
+                </div>
+              </div>
+            </form>
+          )}
+        </main>
+      </div>
+      
+      {/* Child Profile Modal */}
+      <ChildProfileModal
+        isOpen={showChildProfileModal}
+        onClose={() => setShowChildProfileModal(false)}
+        onSuccess={handleChildProfileSuccess}
+      />
+    </AnimatedPage>
+  )
+}
