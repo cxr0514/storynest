@@ -76,6 +76,18 @@ export async function POST(req: NextRequest) {
         userId: session.user.id,
         currentPage: 1,
         isCompleted: false,
+        content: content.trim(),
+        StoryPage: {
+          create: pages.map(p => ({
+            pageNumber: p.pageNumber,
+            content: p.content,
+            characterDescriptions: p.characterDescriptions,
+            updatedAt: new Date(),
+          }))
+        }
+      },
+      include: {
+        StoryPage: true,
       }
     })
 
@@ -118,7 +130,7 @@ export async function POST(req: NextRequest) {
         theme: story.theme,
         summary: story.summary,
         characterCount: characters.length,
-        pageCount: pages.length,
+        pageCount: story.StoryPage.length,
         analytics: analytics ? {
           overallConsistency: analytics.overallConsistency,
           suggestionsCount: analytics.suggestions?.length || 0
