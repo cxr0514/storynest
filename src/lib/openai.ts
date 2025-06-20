@@ -21,20 +21,24 @@ export async function generateStoryWithOpenAI(
     `${char.name}: ${char.species}, ${char.personalityDescription}. ${char.physicalFeatures}`
   ).join('\n')
 
+  const pageCount = request.pageCount || 5
+
   const prompt = `Create a children's bedtime story with the following specifications:
 
 Theme: ${request.theme}
 Characters: ${characterDescriptions}
 Moral Lesson: ${request.moralLesson || 'friendship and kindness'}
 Additional Details: ${request.customPrompt || 'A magical adventure'}
+Story Length: Exactly ${pageCount} pages
 
 Requirements:
-- Create exactly 4 pages of story content
+- Create exactly ${pageCount} pages of story content
 - Each page should be 2-3 sentences suitable for children aged 3-8
 - Maintain character consistency throughout
-- Include character descriptions for each page
+- Include character descriptions for each page that work well for Pixar-style illustrations
 - Keep content wholesome and age-appropriate
 - End with a positive resolution that teaches the moral lesson
+- Design each page to work well as an illustrated scene
 
 Return the response in this exact JSON format:
 {
@@ -48,7 +52,7 @@ Return the response in this exact JSON format:
         "character-id": "How the character appears and behaves on this page"
       }
     },
-    // ... continue for all 4 pages
+    // ... continue for all ${pageCount} pages
   ]
 }`
 
@@ -91,20 +95,24 @@ export async function generateIllustrationPrompt(
     `${char.name}: ${char.physicalFeatures}, ${char.clothingAccessories}`
   ).join('. ')
 
-  const prompt = `Create a DALL-E prompt for a children's book illustration based on:
+  const prompt = `Create a DALL-E prompt for a Pixar-style children's book illustration based on:
 
 Page Content: ${pageContent}
 Characters: ${characterDescriptions}
 Theme: ${theme}
 
 Requirements:
+- Pixar animation style (3D rendered, vibrant, warm lighting)
 - Child-friendly, whimsical art style
-- Bright, vibrant colors
-- Safe, positive imagery
-- Consistent character appearance
-- Book illustration quality
+- Bright, vibrant colors with excellent contrast
+- Safe, positive imagery suitable for ages 3-8
+- Consistent character appearance matching descriptions
+- Professional children's book illustration quality
+- Expressive character faces with emotions
+- Rich environmental details that support the story
+- Cinematic composition with clear focal points
 
-Generate a detailed prompt for DALL-E 3 that will create a beautiful illustration for this page.`
+Generate a detailed prompt for DALL-E 3 that will create a beautiful Pixar-style illustration for this page.`
 
   try {
     const completion = await openai.chat.completions.create({
@@ -134,7 +142,7 @@ export async function generateIllustration(prompt: string): Promise<string> {
   try {
     const response = await openai.images.generate({
       model: "dall-e-3",
-      prompt: `Children's book illustration: ${prompt}. Style: whimsical, colorful, child-friendly, storybook art`,
+      prompt: `Pixar-style 3D rendered children's book illustration: ${prompt}. Art style: Disney/Pixar animation quality, vibrant colors, warm lighting, expressive characters, cinematic composition, child-friendly, storybook art with rich environmental details`,
       size: "1024x1024",
       quality: "standard",
       n: 1,

@@ -10,14 +10,18 @@ export function CustomPrismaAdapter(p: PrismaClient) {
     async createUser(user: Omit<AdapterUser, "id">) {
       console.log('📝 CustomPrismaAdapter.createUser called with:', user)
       try {
-        // Simply pass the user data without any ID manipulation
-        // Prisma will generate the ID automatically due to @default(uuid())
+        // Generate a UUID for the user since the schema doesn't have @default(uuid())
+        const userId = crypto.randomUUID()
+        const currentTime = new Date()
         const newUser = await p.user.create({
           data: {
+            id: userId,
             name: user.name,
             email: user.email,
             image: user.image,
             emailVerified: user.emailVerified,
+            createdAt: currentTime,
+            updatedAt: currentTime,
           },
         })
         console.log('✅ User created successfully:', newUser)
@@ -27,42 +31,43 @@ export function CustomPrismaAdapter(p: PrismaClient) {
         throw error
       }
     },
-    async getUserByAccount({ providerAccountId, provider }: { providerAccountId: string; provider: string }) {
-      console.log('🔍 CustomPrismaAdapter.getUserByAccount called with:', { providerAccountId, provider })
+    async linkAccount(account: {
+      userId: string;
+      type: string;
+      provider: string;
+      providerAccountId: string;
+      refresh_token?: string | null;
+      access_token?: string | null;
+      expires_at?: number | null;
+      token_type?: string | null;
+      scope?: string | null;
+      id_token?: string | null;
+      session_state?: string | null;
+    }) {
+      console.log('🔗 CustomPrismaAdapter.linkAccount called with:', account)
       try {
-        const account = await p.account.findUnique({
-          where: {
-            provider_providerAccountId: {
-              provider,
-              providerAccountId,
-            },
+        // Generate a UUID for the account since the schema doesn't have @default(uuid())
+        const accountId = crypto.randomUUID()
+        const newAccount = await p.account.create({
+          data: {
+            id: accountId,
+            userId: account.userId,
+            type: account.type,
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            refresh_token: account.refresh_token,
+            access_token: account.access_token,
+            expires_at: account.expires_at,
+            token_type: account.token_type,
+            scope: account.scope,
+            id_token: account.id_token,
+            session_state: account.session_state,
           },
-          include: { user: true }, // Now using lowercase relation name
         })
-        const user = account?.user ?? null
-        console.log('🔍 getUserByAccount result:', user ? 'User found' : 'User not found')
-        return user
+        console.log('✅ Account linked successfully:', newAccount)
+        return newAccount
       } catch (error) {
-        console.error('❌ Error getting user by account:', error)
-        throw error
-      }
-    },
-    async getSessionAndUser(sessionToken: string) {
-      console.log('🎫 CustomPrismaAdapter.getSessionAndUser called with token:', sessionToken?.substring(0, 10) + '...')
-      try {
-        const userAndSession = await p.session.findUnique({
-          where: { sessionToken },
-          include: { user: true }, // Now using lowercase relation name
-        })
-        if (!userAndSession) {
-          console.log('🎫 No session found')
-          return null
-        }
-        const { user, ...session } = userAndSession
-        console.log('✅ Session and user found successfully')
-        return { user, session }
-      } catch (error) {
-        console.error('❌ Error getting session and user:', error)
+        console.error('❌ Error linking account:', error)
         throw error
       }
     },

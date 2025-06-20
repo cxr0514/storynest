@@ -28,17 +28,16 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@map("accounts")
+  @@map("Account")
 }
 
 model Session {
   id           String   @id @default(uuid())
   sessionToken String   @unique @map("session_token")
   userId       String   @map("user_id")
-  expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  @@map("sessions")
+  @@map("Session")
 }
 
 model User {
@@ -64,7 +63,7 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   
-  @@map("users")
+  @@map("User")
 }
 
 model VerificationToken {
@@ -87,7 +86,7 @@ model ChildProfile {
   Character Character[]
   readingProgress ReadingProgress[]
   createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  updatedAt DateTime    @default(now()) @updatedAt
 }
 
 model Character {
@@ -128,7 +127,7 @@ model Story {
   moralLesson     String?
   currentPage     Int              @default(1)
   isCompleted     Boolean          @default(false)
-  readingProgress Float            @default(0)
+  progressPercent Float            @default(0)
   content         String?          @db.Text
   
   userId          String
@@ -229,4 +228,5 @@ model ReadingProgress {
   @@unique([userId, childProfileId, storyId])
   @@index([userId, storyId])
   @@index([childProfileId, lastReadAt])
+  @@map("reading_progress")
 }

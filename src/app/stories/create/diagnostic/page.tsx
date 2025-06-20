@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 export default function StoryFormDiagnostic() {
   const { data: session, status } = useSession()
   const [childProfiles, setChildProfiles] = useState([])
   const [characters, setCharacters] = useState([])
-  const [errors, setErrors] = useState([])
   const [loading, setLoading] = useState(true)
   const [testResults, setTestResults] = useState({})
 

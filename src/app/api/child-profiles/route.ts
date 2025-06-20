@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { v4 as uuidv4 } from 'uuid'
 
 export async function GET() {
   try {
@@ -50,11 +51,11 @@ export async function POST(req: Request) {
     // Create child profile
     const childProfile = await prisma.childProfile.create({
       data: {
+        id: uuidv4(),
         name: name.trim(),
         age: ageNumber,
         interests: Array.isArray(interests) ? interests : [],
-        userId: session.user.id,
-        updatedAt: new Date()
+        userId: session.user.id
       }
     })
 

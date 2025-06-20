@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import Image from 'next/image'
 import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ChildProfile, Character } from '@/types'
 import { SegmentAnalytics, getDeviceType, generateSessionId, PerformanceTracker } from '@/lib/segment-analytics'
 import { IllustrationPreloader } from '@/components/illustration-preloader'
-import Image from 'next/image'
 
 interface EnhancedStoryPage {
   id: string
@@ -88,7 +88,7 @@ export default function StoryReader() {
           setCurrentPage(data.story.currentPage - 1) // Convert to 0-based index
           setChildProfile(data.story.childProfile || null)
           
-          const loadTime = PerformanceTracker.endMeasurement('story-load')
+          PerformanceTracker.endMeasurement('story-load')
           
           // Track story reading started
           if (session?.user?.id && data.story.childProfileId) {
@@ -119,7 +119,7 @@ export default function StoryReader() {
     }
   }, [storyId, session, router, deviceType, sessionId])
 
-  const updateReadingProgress = async (pageIndex: number, timeSpent = 0) => {
+  const updateReadingProgress = async (pageIndex: number) => {
     if (!story || !session?.user?.id) return
 
     try {
@@ -206,13 +206,12 @@ export default function StoryReader() {
     if (!story || !session?.user?.id) return
     
     const newPage = Math.max(0, Math.min(pageIndex, story.pages.length - 1))
-    const timeOnPage = Math.floor((Date.now() - pageStartTime) / 1000)
     
     setCurrentPage(newPage)
     setPageStartTime(Date.now()) // Reset page timer
     
     // Update reading progress with analytics
-    await updateReadingProgress(newPage, timeOnPage)
+    await updateReadingProgress(newPage)
     
     // Check if story is completed and track completion
     const isCompleted = newPage >= story.pages.length - 1
@@ -368,8 +367,6 @@ export default function StoryReader() {
                   alt={`Illustration for page ${currentPage + 1} of ${story.title}`}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 60vw"
-                  priority={currentPage === 0}
                   onLoad={() => {
                     // Track illustration load performance
                     const loadTime = PerformanceTracker.endMeasurement(`illustration-${currentPageData.illustration!.id}`)

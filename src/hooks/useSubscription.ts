@@ -11,8 +11,12 @@ export function useSubscription() {
   const { data: session } = useSession()
 
   const fetchData = useCallback(async () => {
-    if (!session) {
+    // Clear any previous errors first
+    setError(null)
+    
+    if (!session?.user) {
       setLoading(false)
+      setSubscription(null)
       return
     }
 
@@ -22,7 +26,14 @@ export function useSubscription() {
       setSubscription(data)
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch subscription')
+      // Only set error for authenticated users
+      if (session?.user) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch subscription'
+        // Don't show error for authentication issues
+        if (errorMessage !== 'Not authenticated') {
+          setError(errorMessage)
+        }
+      }
     } finally {
       setLoading(false)
     }

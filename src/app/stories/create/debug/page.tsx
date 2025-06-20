@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 
 export default function DebugCreateStory() {
   const { data: session, status } = useSession()
   const [debugInfo, setDebugInfo] = useState({
     sessionStatus: 'loading',
     apiTest: 'not tested',
-    errorDetails: null
+    errorDetails: null as string | null
   })
 
   useEffect(() => {
@@ -48,10 +49,12 @@ export default function DebugCreateStory() {
       }
     } catch (error) {
       console.error('API Test Error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorString = error instanceof Error ? error.toString() : String(error)
       setDebugInfo(prev => ({
         ...prev,
-        apiTest: `❌ Error: ${error.message}`,
-        errorDetails: error.toString()
+        apiTest: `❌ Error: ${errorMessage}`,
+        errorDetails: errorString
       }))
     }
   }
@@ -150,7 +153,7 @@ export default function DebugCreateStory() {
               Test API Again
             </button>
             
-            <a 
+            <Link 
               href="/stories/create"
               style={{
                 display: 'inline-block',
@@ -162,7 +165,7 @@ export default function DebugCreateStory() {
               }}
             >
               Back to Story Creation
-            </a>
+            </Link>
           </div>
         )}
       </div>

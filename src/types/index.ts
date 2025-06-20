@@ -142,6 +142,7 @@ export interface StoryGenerationRequest {
   customPrompt?: string
   moralLesson?: string
   targetLength: 'short' | 'medium' | 'long'
+  pageCount?: number
 }
 
 export interface StoryGenerationResponse {

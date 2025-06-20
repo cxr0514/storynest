@@ -7,143 +7,123 @@ import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { AnimatedPage } from '@/components/ui/animated-page'
-// import { useSubscription } from '@/hooks/useSubscription' // Temporarily disabled
+import { Badge } from '@/components/ui/badge'
 import { ChildProfile, Character, StoryTheme } from '@/types'
+
+interface PageCountOption {
+  value: number
+  label: string
+  description: string
+  duration: string
+  icon: string
+}
 
 export default function CreateStory() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preSelectedChildId = searchParams.get('childId')
-  const { data: session } = useSession()
-  // const { subscription, loading: subscriptionLoading } = useSubscription() // Temporarily disabled
+  const { data: session, status } = useSession()
+  
+  // State management
   const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [loadingTimeout, setLoadingTimeout] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState('')
+  const [generationStartTime, setGenerationStartTime] = useState<number | null>(null)
   
   // Form state
   const [selectedChild, setSelectedChild] = useState<string>('')
   const [selectedTheme, setSelectedTheme] = useState<StoryTheme | ''>('')
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([])
-  const [customPrompt, setCustomPrompt] = useState('')
+  const [selectedPageCount, setSelectedPageCount] = useState<number>(5)
+  const [storyDescription, setStoryDescription] = useState('')
   const [moralLesson, setMoralLesson] = useState('')
   const [errors, setErrors] = useState<string[]>([])
 
-  // Redirect if not authenticated
+  // Page count options
+  const pageCountOptions: PageCountOption[] = [
+    { value: 3, label: '3 Pages', description: 'Quick story', duration: '3-5 min read', icon: '⚡' },
+    { value: 5, label: '5 Pages', description: 'Perfect balance', duration: '5-8 min read', icon: '🌟' },
+    { value: 8, label: '8 Pages', description: 'Rich adventure', duration: '8-12 min read', icon: '📖' },
+    { value: 10, label: '10 Pages', description: 'Epic tale', duration: '12-15 min read', icon: '🚀' },
+    { value: 12, label: '12 Pages', description: 'Long journey', duration: '15-20 min read', icon: '🌙' },
+    { value: 15, label: '15 Pages', description: 'Grand adventure', duration: '20-25 min read', icon: '✨' }
+  ]
+
+  // Handle authentication status changes
   useEffect(() => {
-    console.log('🔍 Auth status:', { session, loading: !session })
-    if (!session && typeof window !== 'undefined') {
-      console.log('🚫 Not authenticated, redirecting...')
+    console.log('🔍 Auth status changed:', { status, session: !!session })
+    
+    if (status === 'loading') {
+      console.log('⏳ Authentication loading...')
+      return
+    }
+    
+    if (status === 'unauthenticated' || !session) {
+      console.log('🚫 Not authenticated, redirecting to sign-in...')
       router.push('/auth/signin')
       return
     }
-  }, [session, router])
+    
+    if (status === 'authenticated' && session) {
+      console.log('✅ Authenticated, loading data...')
+      // User is authenticated, data loading will be handled by the next useEffect
+    }
+  }, [status, session, router])
 
-  // Emergency timeout to prevent infinite loading
+  // Load child profiles and characters
   useEffect(() => {
-    const emergencyTimeout = setTimeout(() => {
-      console.log('🚨 Emergency timeout triggered - stopping infinite loading')
-      setLoadingTimeout(true)
-      setIsLoading(false)
-    }, 15000) // 15 seconds max loading time
+    const loadData = async () => {
+      if (!session?.user?.id) {
+        console.log('❌ No user session, skipping data load')
+        return
+      }
 
-    return () => clearTimeout(emergencyTimeout)
-  }, [router])
-
-  useEffect(() => {
-    console.log('🔄 Starting loadChildProfiles...')
-    const loadChildProfiles = async () => {
       try {
-        console.log('📡 Fetching child profiles...')
+        setIsLoading(true)
+        console.log('📡 Loading child profiles...')
         
-        // Add timeout protection
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        const profilesResponse = await fetch('/api/child-profiles')
+        if (!profilesResponse.ok) {
+          throw new Error('Failed to fetch child profiles')
+        }
         
-        const response = await fetch('/api/child-profiles', {
-          signal: controller.signal
-        })
-        clearTimeout(timeoutId)
+        const profiles = await profilesResponse.json()
+        console.log('✅ Child profiles loaded:', profiles.length)
+        setChildProfiles(profiles)
         
-        console.log('📡 Child profiles response:', response.status)
-        
-        if (response.ok) {
-          const profiles = await response.json()
-          console.log('✅ Child profiles loaded:', profiles)
-          setChildProfiles(profiles)
+        if (profiles.length > 0) {
+          // Select the first profile or pre-selected one
+          const targetChildId = preSelectedChildId && profiles.find((p: ChildProfile) => p.id === preSelectedChildId) 
+            ? preSelectedChildId 
+            : profiles[0].id
+            
+          console.log('🎯 Setting selected child to:', targetChildId)
+          setSelectedChild(targetChildId)
           
-          if (profiles.length > 0) {
-            // If there's a pre-selected child ID from query params, use it
-            const targetChildId = preSelectedChildId && profiles.find((p: ChildProfile) => p.id === preSelectedChildId) 
-              ? preSelectedChildId 
-              : profiles[0].id
-              
-            console.log('🎯 Setting selected child to:', targetChildId)
-            setSelectedChild(targetChildId)
-            
-            // Load characters for the selected child
-            console.log('📡 Fetching characters for child:', targetChildId)
-            
-            // Add timeout protection for characters API
-            const charactersController = new AbortController()
-            const charactersTimeoutId = setTimeout(() => charactersController.abort(), 10000)
-            
-            const charactersResponse = await fetch(`/api/characters?childProfileId=${targetChildId}`, {
-              signal: charactersController.signal
-            })
-            clearTimeout(charactersTimeoutId)
-            
-            console.log('📡 Characters response:', charactersResponse.status)
-            
-            if (charactersResponse.ok) {
-              const characters = await charactersResponse.json()
-              console.log('✅ Characters loaded:', characters)
-              setAvailableCharacters(characters)
-            } else {
-              console.error('❌ Failed to fetch characters:', charactersResponse.status)
-            }
-          } else {
-            console.log('⚠️ No child profiles found')
+          // Load characters for the selected child
+          console.log('📡 Loading characters...')
+          const charactersResponse = await fetch(`/api/characters?childProfileId=${targetChildId}`)
+          if (charactersResponse.ok) {
+            const characters = await charactersResponse.json()
+            console.log('✅ Characters loaded:', characters.length)
+            setAvailableCharacters(characters)
           }
-        } else {
-          console.error('❌ Failed to fetch child profiles:', response.status)
-          setErrors(['Failed to load child profiles'])
         }
       } catch (error) {
-        console.error('💥 Error loading child profiles:', error)
-        
-        if (error instanceof Error && error.name === 'AbortError') {
-          setErrors(['Request timed out. Please check your connection and try again.'])
-        } else {
-          setErrors(['Failed to load child profiles: ' + (error instanceof Error ? error.message : 'Unknown error')])
-        }
+        console.error('💥 Error loading data:', error)
+        setErrors(['Failed to load data. Please try refreshing the page.'])
       } finally {
-        console.log('✅ Loading complete, setting isLoading to false')
         setIsLoading(false)
+        console.log('✅ Data loading complete')
       }
     }
 
-    // Add additional safety checks
-    if (session?.user?.id) {
-      console.log('👤 User authenticated, loading data...')
-      loadChildProfiles()
-    } else if (session === null) {
-      console.log('❌ No session found, redirecting to login...')
-      setIsLoading(false)
-      router.push('/auth/signin')
-    } else {
-      console.log('⏳ Waiting for authentication...')
-      // Set a timeout to prevent infinite loading
-      setTimeout(() => {
-        if (!session?.user?.id) {
-          console.log('⏰ Authentication timeout, redirecting...')
-          setIsLoading(false)
-          router.push('/auth/signin')
-        }
-      }, 5000)
+    if (status === 'authenticated' && session?.user?.id) {
+      loadData()
     }
-  }, [session, preSelectedChildId, router])
+  }, [session, preSelectedChildId, status])
 
   useEffect(() => {
     const loadCharactersForChild = async () => {
@@ -194,15 +174,14 @@ export default function CreateStory() {
     if (selectedCharacters.length === 0) {
       setErrors(['Please select at least one character'])
       return
-    }
-
-    console.log('Creating story with:', {
-      selectedChild,
-      selectedTheme,
-      selectedCharacters,
-      customPrompt,
-      moralLesson
-    })
+    }        console.log('Creating story with:', {
+          selectedChild,
+          selectedTheme,
+          selectedCharacters,
+          storyDescription,
+          moralLesson,
+          selectedPageCount
+        })
 
     // Check subscription limits - temporarily disabled
     // if (subscription && !subscriptionLoading) {
@@ -227,23 +206,57 @@ export default function CreateStory() {
     
     setIsGenerating(true)
     setErrors([])
+    setGenerationProgress('Preparing your story...')
+    setGenerationStartTime(Date.now())
+    
+    let progressInterval: NodeJS.Timeout | null = null
     
     try {
       console.log('Creating story with:', { theme: selectedTheme, characterIds: selectedCharacters, childProfileId: selectedChild })
+      
+      // Update progress periodically
+      progressInterval = setInterval(() => {
+        const elapsed = Date.now() - (generationStartTime || Date.now())
+        const seconds = Math.floor(elapsed / 1000)
+        
+        if (seconds < 10) {
+          setGenerationProgress('🤖 AI is crafting your story...')
+        } else if (seconds < 30) {
+          setGenerationProgress('📝 Writing an amazing adventure...')
+        } else if (seconds < 50) {
+          setGenerationProgress('🎨 Adding magical details...')
+        } else {
+          setGenerationProgress('⏰ Almost ready... (this might take up to 70 seconds)')
+        }
+      }, 3000)
+      
+      // Add timeout protection for story generation request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+        console.log('🚨 Story generation request timed out after 70 seconds')
+      }, 70000) // 70 seconds (10 seconds more than server timeout)
       
       const response = await fetch('/api/stories/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
         body: JSON.stringify({
           theme: selectedTheme,
           characterIds: selectedCharacters,
           childProfileId: selectedChild,
-          storyDetails: customPrompt || undefined,
+          storyDetails: storyDescription || undefined,
           moralLesson: moralLesson || undefined,
+          pageCount: selectedPageCount
         }),
       })
+      
+      clearTimeout(timeoutId)
+      if (progressInterval) {
+        clearInterval(progressInterval)
+      }
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -257,18 +270,36 @@ export default function CreateStory() {
         throw new Error('Invalid response: missing story ID')
       }
       
+      setGenerationProgress('✨ Story created! Redirecting...')
+      
       // Navigate to the new story
       router.push(`/stories/${data.story.id}`)
     } catch (error) {
       console.error('Error creating story:', error)
-      setErrors([error instanceof Error ? error.message : 'Failed to create story'])
+      
+      if (progressInterval) {
+        clearInterval(progressInterval)
+      }
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        setErrors([
+          'Story generation timed out after 70 seconds. This may be due to high server load.',
+          'Please try again with a shorter story prompt or wait a few minutes.'
+        ])
+      } else {
+        setErrors([error instanceof Error ? error.message : 'Failed to create story'])
+      }
     } finally {
       // Always reset generating state
       setIsGenerating(false)
+      setGenerationProgress('')
+      if (progressInterval) {
+        clearInterval(progressInterval)
+      }
     }
   }
 
-  if (isLoading && !loadingTimeout) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sky-200 via-purple-100 to-pink-200 relative overflow-hidden">
         {/* Floating decorative elements */}
@@ -291,56 +322,12 @@ export default function CreateStory() {
                 onClick={() => {
                   console.log('🔄 Manual retry triggered')
                   setIsLoading(false)
-                  setLoadingTimeout(false)
                 }} 
                 className="mt-4"
                 variant="outline"
               >
                 Taking too long? Click to continue anyway
               </Button>
-            </div>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
-  // Show error state if loading timed out
-  if (loadingTimeout) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-200 via-purple-100 to-pink-200 relative overflow-hidden">
-        <Header />
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-20">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-orange-500 rounded-full flex items-center justify-center mb-4 mx-auto shadow-lg">
-                <span className="text-white text-3xl">⚠️</span>
-              </div>
-              <h2 className="text-2xl font-bold text-red-700 mb-2">Loading Timeout</h2>
-              <p className="text-red-600 mb-4">The page took too long to load. This might be because:</p>
-              <ul className="text-red-600 text-left max-w-md mx-auto mb-6 space-y-1">
-                <li>• The server isn&apos;t running</li>
-                <li>• You need to sign in first</li>
-                <li>• No sample data exists</li>
-              </ul>
-              <div className="space-x-4">
-                <Button 
-                  onClick={() => router.push('/auth/signin')}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  🔐 Sign In
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setLoadingTimeout(false)
-                    setIsLoading(true)
-                    window.location.reload()
-                  }}
-                  variant="outline"
-                >
-                  🔄 Retry
-                </Button>
-              </div>
             </div>
           </div>
         </main>
@@ -364,11 +351,32 @@ export default function CreateStory() {
         <Header />
         
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-20 relative">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 bg-clip-text text-transparent mb-2 animate-text-glow">
-              📚 Create a Magical Story ✨
+          <div className="mb-8 text-center">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 bg-clip-text text-transparent mb-4 animate-text-glow">
+              ✨ Create Your Magical Story ✨
             </h1>
-            <p className="text-purple-700 font-medium text-lg">🌟 Tell us about your story and we&apos;ll create an amazing adventure! 🌈</p>
+            <p className="text-xl text-purple-700 font-medium mb-2">
+              🌟 Bring your imagination to life with AI-powered storytelling! 🌈
+            </p>
+            <p className="text-lg text-gray-600">
+              Choose your characters, pick a theme, and let&apos;s create an amazing adventure together!
+            </p>
+            
+            {/* Quick Stats */}
+            <div className="mt-6 flex justify-center gap-6 text-sm">
+              <div className="flex items-center gap-2 bg-purple-100 px-4 py-2 rounded-full">
+                <span className="text-purple-600">📚</span>
+                <span className="text-purple-700 font-medium">Pixar-Style Illustrations</span>
+              </div>
+              <div className="flex items-center gap-2 bg-pink-100 px-4 py-2 rounded-full">
+                <span className="text-pink-600">🎨</span>
+                <span className="text-pink-700 font-medium">Custom Characters</span>
+              </div>
+              <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded-full">
+                <span className="text-blue-600">⚡</span>
+                <span className="text-blue-700 font-medium">AI-Powered</span>
+              </div>
+            </div>
             
             {/* Debug Info - Remove in production */}
             {process.env.NODE_ENV === 'development' && (
@@ -485,6 +493,41 @@ export default function CreateStory() {
                 </div>
               </div>
 
+              {/* Page Count Selection */}
+              <div>
+                <label className="block text-lg font-semibold text-gray-800 mb-3">
+                  📖 Story Length
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {pageCountOptions.map((option) => (
+                    <Card
+                      key={option.value}
+                      className={`p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-md ${
+                        selectedPageCount === option.value 
+                          ? 'border-2 border-purple-500 bg-purple-50 ring-2 ring-purple-200' 
+                          : 'border hover:border-purple-300'
+                      }`}
+                      onClick={() => {
+                        console.log('Page count selected:', option.value)
+                        setSelectedPageCount(option.value)
+                      }}
+                    >
+                      <CardContent className="text-center p-0">
+                        <div className="text-3xl mb-2">{option.icon}</div>
+                        <div className="font-semibold text-gray-800">{option.label}</div>
+                        <div className="text-sm text-gray-600">{option.description}</div>
+                        <Badge 
+                          variant={selectedPageCount === option.value ? "default" : "secondary"}
+                          className="mt-2 text-xs"
+                        >
+                          {option.duration}
+                        </Badge>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
               {/* Characters */}
               <div>
                 <label className="block text-lg font-semibold text-gray-800 mb-3">
@@ -504,72 +547,117 @@ export default function CreateStory() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {availableCharacters.map((character) => (
-                      <div 
+                      <Card
                         key={character.id}
-                        className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-all duration-300 hover:scale-[1.02] ${
+                        className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg relative overflow-hidden ${
                           selectedCharacters.includes(character.id)
-                            ? 'border-2 border-orange-300 bg-orange-50 shadow-md'
-                            : 'border hover:border-orange-300 hover:bg-orange-50 hover:shadow-sm'
+                            ? 'border-2 border-orange-400 bg-orange-50 shadow-xl ring-2 ring-orange-200'
+                            : 'border hover:border-orange-300 hover:shadow-md'
                         }`}
                         onClick={() => toggleCharacter(character.id)}
                       >
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xl">
-                            {character.species === 'animal' ? '🐾' : 
-                             character.species === 'magical' ? '✨' : '👤'}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">{character.name}</h4>
-                          <p className="text-sm text-gray-600">{character.personalityDescription}</p>
-                          <div className="flex gap-1 mt-1">
-                            {(character.personalityTraits || []).slice(0, 3).map((trait) => (
-                              <span 
-                                key={trait} 
-                                className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
-                              >
-                                {trait}
+                        <CardContent className="p-4">
+                          {/* Character Avatar */}
+                          <div className="relative mb-3">
+                            <div className="w-16 h-16 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                              <span className="text-white text-2xl">
+                                {character.species === 'animal' ? '🐾' : 
+                                 character.species === 'magical' ? '✨' : 
+                                 character.species === 'human' ? '👤' : '🌟'}
                               </span>
-                            ))}
+                            </div>
+                            {/* Selection Indicator */}
+                            {selectedCharacters.includes(character.id) && (
+                              <div className="absolute -top-1 -right-1 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                                <span className="text-white text-sm">✓</span>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedCharacters.includes(character.id)}
-                          onChange={() => toggleCharacter(character.id)}
-                          className="w-5 h-5 text-orange-500 transition-transform duration-200 hover:scale-110"
-                        />
-                      </div>
+                          
+                          {/* Character Info */}
+                          <div className="text-center">
+                            <h4 className="font-bold text-gray-800 mb-1">{character.name}</h4>
+                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                              {character.personalityDescription}
+                            </p>
+                            
+                            {/* Character Traits */}
+                            <div className="flex flex-wrap gap-1 justify-center mb-3">
+                              {(character.personalityTraits || []).slice(0, 2).map((trait) => (
+                                <Badge 
+                                  key={trait} 
+                                  variant="secondary" 
+                                  className="text-xs px-2 py-1"
+                                >
+                                  {trait}
+                                </Badge>
+                              ))}
+                            </div>
+                            
+                            {/* Character Species Badge */}
+                            <Badge 
+                              variant={selectedCharacters.includes(character.id) ? "default" : "outline"}
+                              className="text-xs capitalize"
+                            >
+                              {character.species || 'character'}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                     
-                    <Button 
-                      variant="outline" 
-                      className="w-full hover:scale-[1.02] transition-all duration-200"
-                      onClick={() => router.push('/characters/create')}
-                    >
-                      ✨ Create New Character
-                    </Button>
+                    {/* Add New Character Card */}
+                    <Card className="border-2 border-dashed border-gray-300 hover:border-purple-400 transition-all duration-300 hover:shadow-md cursor-pointer">
+                      <CardContent className="p-4 h-full flex flex-col items-center justify-center text-center">
+                        <div className="w-16 h-16 bg-gradient-to-br from-gray-300 to-gray-400 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+                          <span className="text-white text-2xl">➕</span>
+                        </div>
+                        <h4 className="font-bold text-gray-600 mb-2">Create New Character</h4>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            router.push('/characters/create')
+                          }}
+                          className="hover:scale-105 transition-transform duration-200"
+                        >
+                          ✨ Add Character
+                        </Button>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
               </div>
 
-              {/* Story Details */}
+              {/* Story Description & Hints */}
               <div>
-                <label className="block text-lg font-semibold text-gray-800 mb-3">
-                  Story Details (Optional)
-                </label>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-lg font-semibold text-gray-800">
+                    💭 Story Hints & Ideas <span className="text-sm font-normal text-gray-500">(Optional)</span>
+                  </label>
+                  <span className="text-sm text-gray-500">
+                    {storyDescription.length}/500
+                  </span>
+                </div>
                 <textarea
-                  value={customPrompt}
+                  value={storyDescription}
                   onChange={(e) => {
-                    console.log('Custom prompt changed:', e.target.value)
-                    setCustomPrompt(e.target.value)
+                    if (e.target.value.length <= 500) {
+                      console.log('Story description changed:', e.target.value)
+                      setStoryDescription(e.target.value)
+                    }
                   }}
-                  placeholder="Tell us more about what should happen in the story... (e.g., 'The character should learn about friendship and face a small challenge in the magical forest')"
-                  className="w-full h-24 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 hover:border-orange-300"
-                  data-testid="custom-prompt"
+                  placeholder="Share your ideas for the story... What adventure should happen? What should the characters learn? Any specific settings or magical elements? (e.g., 'The characters should explore an enchanted forest and learn about friendship while helping a lost fairy find her way home.')"
+                  className="w-full h-28 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 hover:border-purple-300"
+                  data-testid="story-description"
+                  maxLength={500}
                 />
+                <div className="mt-2 text-xs text-gray-500">
+                  💡 <strong>Tip:</strong> The more details you provide, the more personalized your story will be!
+                </div>
               </div>
 
               {/* Moral/Lesson */}
@@ -596,26 +684,72 @@ export default function CreateStory() {
                 </select>
               </div>
 
-              <div className="flex gap-4 pt-6">
+              <div className="flex flex-col sm:flex-row gap-4 pt-8">
                 <Button 
                   variant="outline" 
-                  className="flex-1 hover:scale-105 transition-all duration-200"
+                  className="flex-1 hover:scale-105 transition-all duration-200 h-12"
                   onClick={() => router.push('/dashboard')}
                   disabled={isGenerating}
+                  aria-label="Cancel story creation and return to dashboard"
                 >
+                  <span className="mr-2">❌</span>
                   Cancel
                 </Button>
                 <Button 
-                  className="flex-1" 
+                  className="flex-1 h-12 text-lg font-bold shadow-lg hover:shadow-xl" 
                   size="lg"
                   onClick={handleCreateStory}
-                  disabled={isGenerating}
+                  disabled={isGenerating || !selectedChild || !selectedTheme || selectedCharacters.length === 0}
                   isLoading={isGenerating}
                   variant="magical"
+                  aria-label={isGenerating ? 'Creating your magical story' : 'Create your magical story'}
                 >
-                  {isGenerating ? '🪄 Creating Magic...' : '✨ Create Story'}
+                  {isGenerating ? (
+                    <>
+                      <span className="mr-2">🪄</span>
+                      Creating Magic...
+                    </>
+                  ) : (
+                    <>
+                      <span className="mr-2">✨</span>
+                      Create My Story ({selectedPageCount} pages)
+                    </>
+                  )}
                 </Button>
               </div>
+
+              {/* Form Validation Summary */}
+              {(!selectedChild || !selectedTheme || selectedCharacters.length === 0) && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-yellow-800">
+                    <span>⚠️</span>
+                    <span className="font-medium">Complete these steps to create your story:</span>
+                  </div>
+                  <ul className="mt-2 text-sm text-yellow-700 ml-6 space-y-1">
+                    {!selectedChild && <li>• Select a child profile</li>}
+                    {!selectedTheme && <li>• Choose a story theme</li>}
+                    {selectedCharacters.length === 0 && <li>• Pick at least one character</li>}
+                  </ul>
+                </div>
+              )}
+
+              {/* Progress Indicator */}
+              {isGenerating && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    <span className="text-blue-800 font-medium">{generationProgress}</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="bg-blue-200 rounded-full h-2">
+                      <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '100%' }}></div>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Story generation typically takes 15-60 seconds. Please don&apos;t close this page.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </main>

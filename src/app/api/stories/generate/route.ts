@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Character, CharacterAppearance } from '@/types'
 import { generateStoryWithOpenAI, generateIllustrationPrompt, generateIllustration } from '@/lib/openai'
-import { uploadImageToS3 } from '@/lib/storage-cloud'
+import { smartImageUpload } from '@/lib/storage-smart'
+import { randomUUID } from 'crypto'
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { theme, characterIds, childProfileId, storyDetails, moralLesson } = body
+    const { theme, characterIds, childProfileId, storyDetails, moralLesson, pageCount = 5 } = body
 
     // Validate input
     if (!theme || !characterIds || !Array.isArray(characterIds) || characterIds.length === 0) {
@@ -65,7 +66,8 @@ export async function POST(req: NextRequest) {
         childProfileId,
         customPrompt: storyDetails,
         moralLesson,
-        targetLength: 'medium'
+        targetLength: 'medium',
+        pageCount
       }, characters),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Story generation timeout')), 60000) // 60 second timeout
@@ -74,9 +76,13 @@ export async function POST(req: NextRequest) {
 
     console.log('Story generated, saving to database...')
 
+    // Generate unique ID for the story
+    const storyId = randomUUID()
+
     // Create story in database
     const story = await prisma.story.create({
       data: {
+        id: storyId,
         title: storyData.title,
         theme,
         summary: storyData.summary,
@@ -86,6 +92,7 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
         StoryPage: {
           create: storyData.pages.map(page => ({
+            id: randomUUID(),
             pageNumber: page.pageNumber,
             content: page.content,
             characterDescriptions: page.characterDescriptions,
@@ -94,6 +101,7 @@ export async function POST(req: NextRequest) {
         },
         StoryCharacter: {
           create: characterIds.map((characterId: string) => ({
+            id: randomUUID(),
             characterId
           }))
         }
@@ -165,8 +173,11 @@ async function generateIllustrationsForStory(
   characters: Character[],
   theme: string
 ) {
-  try {
-    for (const page of pages) {
+  let successCount = 0
+  let failureCount = 0
+  
+  for (const page of pages) {
+    try {
       const storyPage = await prisma.storyPage.findFirst({
         where: {
           storyId,
@@ -174,29 +185,58 @@ async function generateIllustrationsForStory(
         }
       })
 
-      if (!storyPage) continue
+      if (!storyPage) {
+        console.warn(`Story page not found for page ${page.pageNumber}`)
+        continue
+      }
 
+      console.log(`Generating illustration for page ${page.pageNumber}`)
+      
       // Generate illustration prompt
       const prompt = await generateIllustrationPrompt(page.content, characters, theme)
       
       // Generate illustration
       const imageUrl = await generateIllustration(prompt)
       
-      // Upload to S3
-      const s3Url = await uploadImageToS3(imageUrl, `stories/${storyId}`)
+      let finalUrl = imageUrl // Default to the original generated URL
       
-      // Save to database
+      try {
+        // Try to upload to S3
+        console.log(`Uploading illustration for page ${page.pageNumber} to S3...`)
+        const uploadResult = await smartImageUpload(imageUrl, `stories/${storyId}`)
+        finalUrl = uploadResult.url
+        console.log(`Successfully uploaded illustration for page ${page.pageNumber} using ${uploadResult.storage} storage`)
+      } catch (uploadError) {
+        console.error(`Failed to upload illustration for page ${page.pageNumber} to S3:`, uploadError)
+        console.log(`Using fallback URL for page ${page.pageNumber}: ${imageUrl}`)
+        // Continue with the original image URL as fallback
+      }
+      
+      // Save to database (with either S3 URL or fallback URL)
       await prisma.illustration.create({
         data: {
-          url: s3Url,
+          id: randomUUID(),
+          url: finalUrl,
           prompt,
           storyId,
           storyPageId: storyPage.id,
           updatedAt: new Date()
         }
       })
+      
+      successCount++
+      console.log(`Successfully processed illustration for page ${page.pageNumber}`)
+      
+    } catch (error) {
+      failureCount++
+      console.error(`Failed to process illustration for page ${page.pageNumber}:`, error)
+      // Continue to next page instead of failing completely
     }
-  } catch (error) {
-    console.error('Error generating illustrations:', error)
+  }
+  
+  console.log(`Illustration generation complete: ${successCount} successful, ${failureCount} failed`)
+  
+  if (failureCount > 0 && successCount === 0) {
+    throw new Error('Failed to generate any illustrations')
   }
 }

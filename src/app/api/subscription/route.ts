@@ -17,7 +17,7 @@ export async function GET() {
       where: { id: session.user.id },
       select: {
         credits: true,
-        subscription: {
+        Subscription: {
           select: {
             plan: true,
             status: true,
@@ -33,7 +33,7 @@ export async function GET() {
     }
 
     // Get current plan - default to free if no subscription
-    const currentPlan = user.subscription?.plan || 'free'
+    const currentPlan = user.Subscription?.plan || 'free'
     const planLimits = getPlanLimits(currentPlan)
     
     // Calculate stories this month (simplified for demo)
@@ -70,8 +70,8 @@ export async function GET() {
     return NextResponse.json({
       plan: currentPlan,
       usage,
-      planExpiresAt: user.subscription?.expiresAt,
-      stripeSubscriptionId: user.subscription?.stripeId,
+      planExpiresAt: user.Subscription?.expiresAt,
+      stripeSubscriptionId: user.Subscription?.stripeId,
       features: planLimits.features
     })
 
@@ -115,14 +115,14 @@ async function createCheckoutSession(userId: string, planType: string, billingIn
     // Get or create customer
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, name: true, subscription: true }
+      select: { email: true, name: true, Subscription: true }
     })
 
     if (!user?.email) {
       return NextResponse.json({ error: 'User email not found' }, { status: 400 })
     }
 
-    let customerId = user.subscription?.stripeId
+    let customerId = user.Subscription?.stripeId
 
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -180,15 +180,15 @@ async function createCustomerPortalSession(userId: string) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { subscription: true }
+      select: { Subscription: true }
     })
 
-    if (!user?.subscription?.stripeId) {
+    if (!user?.Subscription?.stripeId) {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 400 })
     }
 
     const portalSession = await stripe.billingPortal.sessions.create({
-      customer: user.subscription.stripeId,
+      customer: user.Subscription.stripeId,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
     })
 
@@ -207,14 +207,14 @@ async function purchaseCredits(userId: string) {
     // Get or create customer
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, name: true, subscription: true }
+      select: { email: true, name: true, Subscription: true }
     })
 
     if (!user?.email) {
       return NextResponse.json({ error: 'User email not found' }, { status: 400 })
     }
 
-    let customerId = user.subscription?.stripeId
+    let customerId = user.Subscription?.stripeId
 
     if (!customerId) {
       const customer = await stripe.customers.create({

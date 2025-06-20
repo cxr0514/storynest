@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading'
 import { ChildProfile, Story, Character } from '@/types'
 
@@ -73,7 +73,7 @@ export default function ChildProfilePage() {
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
               <LoadingSpinner size="xl" variant="magic" />
-              <p className="text-purple-700 font-medium mt-4 text-lg">✨ Loading {childProfile?.name || 'child'}'s profile ✨</p>
+              <p className="text-purple-700 font-medium mt-4 text-lg">✨ Loading {childProfile?.name || 'child'}&apos;s profile ✨</p>
             </div>
           </div>
         </main>
@@ -130,7 +130,7 @@ export default function ChildProfilePage() {
               </div>
               <div className="flex-1">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-                  {childProfile.name}'s Story World ✨
+                  {childProfile.name}&apos;s Story World ✨
                 </h1>
                 <p className="text-purple-600 font-medium">🎂 Age {childProfile.age}</p>
                 {childProfile.interests && childProfile.interests.length > 0 && (
@@ -190,7 +190,7 @@ export default function ChildProfilePage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-              📚 {childProfile.name}'s Stories
+              📚 {childProfile.name}&apos;s Stories
             </h2>
             {stories.length > 0 && (
               <Button 
@@ -208,7 +208,7 @@ export default function ChildProfilePage() {
                 <div className="text-4xl mb-4">📖</div>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No stories yet</h3>
                 <p className="text-gray-600 mb-4">
-                  {childProfile.name} hasn't started any magical adventures yet!
+                  {childProfile.name} hasn&apos;t started any magical adventures yet!
                 </p>
                 <Button onClick={() => router.push(`/stories/create?childId=${childProfile.id}`)}>
                   Create First Story
@@ -245,7 +245,7 @@ export default function ChildProfilePage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-              🎭 {childProfile.name}'s Characters
+              🎭 {childProfile.name}&apos;s Characters
             </h2>
             {characters.length > 0 && (
               <Button 
@@ -263,7 +263,7 @@ export default function ChildProfilePage() {
                 <div className="text-4xl mb-4">🎭</div>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No characters yet</h3>
                 <p className="text-gray-600 mb-4">
-                  Create some colorful characters for {childProfile.name}'s stories!
+                  Create some colorful characters for {childProfile.name}&apos;s stories!
                 </p>
                 <Button onClick={() => router.push(`/characters/create?childId=${childProfile.id}`)}>
                   Create First Character

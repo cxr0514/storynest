@@ -133,12 +133,19 @@ export async function fetchSubscriptionData(): Promise<SubscriptionData> {
     const result = await response.json()
 
     if (!response.ok) {
+      // Don't log 401 errors as they're expected when not authenticated
+      if (response.status === 401) {
+        throw new Error('Not authenticated')
+      }
       throw new Error(result.error || 'Failed to fetch subscription data')
     }
 
     return result
   } catch (error) {
-    console.error('Error fetching subscription data:', error)
+    // Only log non-authentication errors
+    if (error instanceof Error && error.message !== 'Not authenticated') {
+      console.error('Error fetching subscription data:', error)
+    }
     throw error
   }
 }

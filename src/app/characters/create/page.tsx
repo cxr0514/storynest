@@ -1,39 +1,34 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
-import { Header } from '@/components/layout/header'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useSubscription } from '@/hooks/useSubscription'
-import { ChildProfileModal } from '@/components/child-profile-modal'
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import { ChildProfileModal } from '@/components/child-profile-modal';
 
 interface ChildProfile {
-  id: string
-  name: string
-  age: number
+  id: string;
+  name: string;
+  age: number;
 }
 
 interface CharacterFormData {
-  name: string
-  species: string
-  age: string
-  physicalFeatures: string
-  clothingAccessories: string
-  personalityTraits: string
-  personalityDescription: string
-  specialAbilities: string
-  favoriteThings: string
-  speakingStyle: string
-  favoritePhrases: string
-  childProfileId: string
-  backstory: string
-  goals: string
-  quirks: string
-  catchphrase: string
+  name: string;
+  species: string;
+  age: string;
+  physicalFeatures: string;
+  clothingAccessories: string;
+  personalityTraits: string[];
+  personalityDescription: string;
+  specialAbilities: string;
+  favoriteThings: string;
+  speakingStyle: string;
+  favoritePhrases: string;
+  childProfileId: string;
+  backstory: string;
+  goals: string;
+  quirks: string;
+  catchphrase: string;
+  illustrationPrompt?: string;
 }
 
 const initialFormData: CharacterFormData = {
@@ -42,7 +37,7 @@ const initialFormData: CharacterFormData = {
   age: '',
   physicalFeatures: '',
   clothingAccessories: '',
-  personalityTraits: '',
+  personalityTraits: [],
   personalityDescription: '',
   specialAbilities: '',
   favoriteThings: '',
@@ -52,597 +47,605 @@ const initialFormData: CharacterFormData = {
   backstory: '',
   goals: '',
   quirks: '',
-  catchphrase: ''
-}
-
-const characterTypes = [
-  { value: 'human', emoji: '👤', label: 'Human', description: 'A regular person with unique traits' },
-  { value: 'animal', emoji: '🐾', label: 'Animal', description: 'A talking animal friend' },
-  { value: 'fantasy', emoji: '🧙‍♂️', label: 'Fantasy', description: 'Magical creatures like wizards, fairies, or dragons' },
-  { value: 'robot', emoji: '🤖', label: 'Robot', description: 'A friendly mechanical companion' },
-  { value: 'superhero', emoji: '🦸‍♀️', label: 'Superhero', description: 'A hero with special powers' },
-  { value: 'alien', emoji: '👽', label: 'Alien', description: 'A friendly visitor from space' }
-]
-
-const validateForm = (data: CharacterFormData): string[] => {
-  const errors: string[] = []
-  
-  if (!data.name.trim()) errors.push('Character name is required')
-  if (!data.species.trim()) errors.push('Character type is required')
-  if (!data.personalityTraits.trim()) errors.push('Personality traits are required')
-  if (!data.childProfileId.trim()) errors.push('Child profile selection is required')
-  
-  // Ensure age and physicalFeatures have values (with defaults)
-  if (!data.age.trim() && !data.physicalFeatures.trim()) {
-    errors.push('Either age or physical features should be specified')
-  }
-  
-  return errors
-}
+  catchphrase: '',
+  illustrationPrompt: ''
+};
 
 export default function CreateCharacterPage() {
-  const { data: session } = useSession()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { subscription } = useSubscription()
-  
-  const [formData, setFormData] = useState<CharacterFormData>(initialFormData)
-  const [errors, setErrors] = useState<string[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
-  const [showChildProfileModal, setShowChildProfileModal] = useState(false)
-  const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([])
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [formData, setFormData] = useState<CharacterFormData>(initialFormData);
+  const [childProfiles, setChildProfiles] = useState<ChildProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showChildProfileModal, setShowChildProfileModal] = useState(false);
+  const [characterEmoji, setCharacterEmoji] = useState('👤');
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const isCharacterLimitReached = subscription && subscription.usage.charactersLimit !== -1 
-    ? (subscription.usage.charactersCount || 0) >= (subscription.usage.charactersLimit || 0)
-    : false
-
+  // Load child profiles
   useEffect(() => {
     if (!session) {
-      router.push('/auth/signin')
-      return
+      router.push('/auth/signin');
+      return;
     }
-    
-    fetchChildProfiles()
-  }, [session, router])
 
-  // Effect to handle child pre-selection from query params
-  useEffect(() => {
-    const preSelectedChildId = searchParams.get('childId')
-    if (preSelectedChildId && childProfiles.length > 0) {
-      const targetChildExists = childProfiles.find((profile: ChildProfile) => profile.id === preSelectedChildId)
-      if (targetChildExists) {
-        setFormData(prev => ({ ...prev, childProfileId: preSelectedChildId }))
+    const loadChildProfiles = async () => {
+      try {
+        const response = await fetch('/api/child-profiles');
+        if (response.ok) {
+          const profiles = await response.json();
+          setChildProfiles(profiles);
+          if (profiles.length > 0) {
+            setFormData(prev => ({ ...prev, childProfileId: profiles[0].id }));
+          }
+        } else {
+          setError('Failed to load child profiles');
+        }
+      } catch (error) {
+        setError('Error loading child profiles');
+        console.error('Error loading child profiles:', error);
+      } finally {
+        setIsLoading(false);
       }
-    } else if (childProfiles.length > 0 && !formData.childProfileId) {
-      // Set default to first child if no pre-selection and no current selection
-      setFormData(prev => ({ ...prev, childProfileId: childProfiles[0].id }))
-    }
-  }, [childProfiles, searchParams, formData.childProfileId])
+    };
 
-  const fetchChildProfiles = async () => {
+    loadChildProfiles();
+  }, [session, router]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    setError(null);
+    if (name === 'species') updateCharacterPreview();
+  };
+
+  const handleSpeciesChipClick = (species: string) => {
+    setFormData(prev => ({ ...prev, species }));
+    updateCharacterPreview();
+  };
+
+  const handleTraitClick = (trait: string) => {
+    const newTraits = formData.personalityTraits.includes(trait)
+      ? formData.personalityTraits.filter(t => t !== trait)
+      : [...formData.personalityTraits, trait];
+    
+    setFormData(prev => ({ ...prev, personalityTraits: newTraits }));
+  };
+
+  const updateCharacterPreview = () => {
+    const species = formData.species.toLowerCase();
+    const emojiMap: { [key: string]: string } = {
+      'human': '🧑',
+      'dragon': '🐉',
+      'unicorn': '🦄',
+      'robot': '🤖',
+      'fairy': '🧚',
+      'wizard': '🧙'
+    };
+    
+    setCharacterEmoji(emojiMap[species] || '👤');
+  };
+
+  const updateProgress = () => {
+    const fields = [
+      formData.childProfileId,
+      formData.name,
+      formData.species,
+      formData.age,
+      formData.physicalFeatures,
+      formData.personalityDescription,
+      formData.personalityTraits.length > 0 ? 'selected' : ''
+    ];
+
+    const filledFields = fields.filter(field => field && field.toString().trim() !== '').length;
+    return { filledFields, totalFields: fields.length };
+  };
+
+  const handleChildProfileSuccess = async () => {
+    setShowChildProfileModal(false);
+    // Reload child profiles
     try {
-      const response = await fetch('/api/child-profiles')
+      const response = await fetch('/api/child-profiles');
       if (response.ok) {
-        const profiles = await response.json()
-        setChildProfiles(profiles)
+        const profiles = await response.json();
+        setChildProfiles(profiles);
+        if (profiles.length > 0) {
+          setFormData(prev => ({ ...prev, childProfileId: profiles[0].id }));
+        }
       }
     } catch (error) {
-      console.error('Error fetching child profiles:', error)
+      console.error('Error reloading child profiles:', error);
     }
-  }
-
-  const handleInputChange = (field: keyof CharacterFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    // Clear related errors when user starts typing
-    if (errors.length > 0) {
-      setErrors([])
-    }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const validationErrors = validateForm(formData)
-    if (validationErrors.length > 0) {
-      setErrors(validationErrors)
-      return
-    }
-
-    if (isCharacterLimitReached) {
-      setErrors(['Character creation limit reached. Please upgrade your plan to create more characters.'])
-      return
-    }
-
-    setIsSubmitting(true)
-    setErrors([])
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
 
     try {
-      // Map form data to API expected format
+      if (!formData.childProfileId) {
+        throw new Error('Please select a child profile');
+      }
+
       const characterData = {
-        ...formData,
-        personalityDescription: formData.personalityTraits, // API expects personalityDescription
-        personalityTraits: formData.personalityTraits.split(',').map(trait => trait.trim()).filter(Boolean),
-        favoritePhrases: formData.favoritePhrases.split(',').map(phrase => phrase.trim()).filter(Boolean),
+        name: formData.name,
+        species: formData.species,
+        age: formData.age,
+        physicalFeatures: formData.physicalFeatures,
+        clothingAccessories: formData.clothingAccessories,
+        personalityTraits: formData.personalityTraits,
+        personalityDescription: formData.personalityDescription,
+        specialAbilities: formData.specialAbilities || '',
+        favoriteThings: formData.favoriteThings || '',
+        speakingStyle: formData.speakingStyle || '',
+        favoritePhrases: formData.favoritePhrases ? formData.favoritePhrases.split(',').map(p => p.trim()).filter(Boolean) : [],
+        childProfileId: formData.childProfileId,
         ageGroups: ['3-6', '7-10'],
-        appearances: [],
-        // Ensure required fields have fallback values
-        age: formData.age || 'Unknown',
-        physicalFeatures: formData.physicalFeatures || 'Not specified'
-      }
+        appearances: []
+      };
 
-      console.log('Sending character data:', characterData)
-
-      const response = await fetch('/api/characters', {
+      const res = await fetch('/api/characters', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(characterData)
-      })
-
-      if (response.ok) {
-        router.push('/characters')
-      } else {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        setErrors([errorData.error || errorData.message || 'Failed to create character'])
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(characterData),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `Failed to create character: ${res.statusText}`);
       }
-    } catch (error) {
-      console.error('Error creating character:', error)
-      setErrors(['An error occurred while creating the character'])
+      
+      const { id } = await res.json();
+      
+      // Show success animation
+      setShowSuccess(true);
+      
+      // Redirect after success animation
+      setTimeout(() => {
+        router.push(`/characters/${id}`);
+      }, 3000);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create character';
+      setError(errorMessage);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
-  const handleChildProfileSuccess = () => {
-    setShowChildProfileModal(false)
-    fetchChildProfiles()
-  }
+  const { filledFields, totalFields } = updateProgress();
+  const progressPercentage = (filledFields / totalFields) * 100;
 
-  if (!session) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+      <div className="max-w-2xl mx-auto p-6">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  if (showSuccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-400 via-orange-400 via-blue-400 via-purple-400 to-cyan-400 bg-[length:400%_400%] animate-gradient-shift flex items-center justify-center p-5">
+        <style jsx global>{`
+          @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            25% { background-position: 100% 50%; }
+            50% { background-position: 100% 100%; }
+            75% { background-position: 0% 100%; }
+          }
+          @keyframes successBounce {
+            0% { transform: scale(0) rotate(0deg); }
+            50% { transform: scale(1.2) rotate(180deg); }
+            100% { transform: scale(1) rotate(360deg); }
+          }
+          .animate-gradient-shift {
+            animation: gradientShift 15s ease infinite;
+          }
+        `}</style>
+        <div className="max-w-2xl w-full bg-white/95 backdrop-blur-[20px] rounded-[32px] p-12 shadow-[0_30px_80px_rgba(0,0,0,0.12)] border border-white/30 text-center">
+          <div className="w-[100px] h-[100px] rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mx-auto mb-6 animate-[successBounce_0.8s_ease-out]">
+            <span className="text-white text-4xl">✓</span>
+          </div>
+          <h2 className="text-green-600 mb-3 text-[28px] font-bold">Character Created!</h2>
+          <p className="text-gray-500 text-base">Your new character has been successfully created and is ready for adventures!</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
-      <Header />
+    <>
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        @keyframes gradientShift {
+          0%, 100% { background-position: 0% 50%; }
+          25% { background-position: 100% 50%; }
+          50% { background-position: 100% 100%; }
+          75% { background-position: 0% 100%; }
+        }
+
+        @keyframes floatChar {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          25% { transform: translateY(-30px) rotate(90deg); }
+          50% { transform: translateY(-15px) rotate(180deg); }
+          75% { transform: translateY(-25px) rotate(270deg); }
+        }
+
+        @keyframes slideInScale {
+          from {
+            opacity: 0;
+            transform: translateY(40px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes fadeInDown {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes sectionSlideIn {
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes sparkle {
+          0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+          50% { transform: scale(1.2) rotate(180deg); opacity: 0.7; }
+        }
+
+        @keyframes gradientFlow {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+
+        @keyframes previewPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
+
+        @keyframes successBounce {
+          0% { transform: scale(0) rotate(0deg); }
+          50% { transform: scale(1.2) rotate(180deg); }
+          100% { transform: scale(1) rotate(360deg); }
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .animate-gradient-shift {
+          animation: gradientShift 15s ease infinite;
+        }
+
+        .animate-float-char {
+          animation: floatChar 8s ease-in-out infinite;
+        }
+
+        .animate-slide-in-scale {
+          animation: slideInScale 1s ease-out;
+        }
+
+        .animate-fade-in-down {
+          animation: fadeInDown 0.8s ease-out 0.3s both;
+        }
+
+        .animate-section-slide-in {
+          opacity: 0;
+          transform: translateX(30px);
+          animation: sectionSlideIn 0.6s ease-out forwards;
+        }
+
+        .animate-sparkle {
+          animation: sparkle 2s ease-in-out infinite;
+        }
+
+        .animate-gradient-flow {
+          animation: gradientFlow 4s ease-in-out infinite;
+        }
+
+        .animate-preview-pulse {
+          animation: previewPulse 3s ease-in-out infinite;
+        }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+      `}</style>
       
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Page Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-4xl">🎭</span>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              Create Your Character
-            </h1>
-            <span className="text-4xl">✨</span>
+      <div className="min-h-screen bg-gradient-to-br from-red-400 via-orange-400 via-blue-400 via-purple-400 to-cyan-400 bg-[length:400%_400%] animate-gradient-shift p-5 overflow-x-hidden font-['Inter',sans-serif]">
+        {/* Background Effects */}
+        <div className="fixed top-0 left-0 w-full h-full -z-10 opacity-10">
+          <div className="absolute w-full h-full">
+            <div className="absolute text-4xl opacity-30 animate-float-char" style={{ top: '10%', left: '10%', animationDelay: '0s' }}>🧙‍♂️</div>
+            <div className="absolute text-4xl opacity-30 animate-float-char" style={{ top: '60%', left: '80%', animationDelay: '2s' }}>🦄</div>
+            <div className="absolute text-4xl opacity-30 animate-float-char" style={{ top: '80%', left: '20%', animationDelay: '4s' }}>🐉</div>
+            <div className="absolute text-4xl opacity-30 animate-float-char" style={{ top: '30%', left: '70%', animationDelay: '6s' }}>🤖</div>
           </div>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Bring your imagination to life! Create a unique character that will star in amazing stories.
-          </p>
-          
-          {/* Character Limit Status */}
-          {subscription && subscription.usage.charactersLimit !== -1 && (
-            <div className="mt-6 max-w-md mx-auto">
-              <div className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Characters Created</span>
-                  <Badge variant={isCharacterLimitReached ? "destructive" : "default"}>
-                    {subscription.usage.charactersCount} / {subscription.usage.charactersLimit}
-                  </Badge>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      isCharacterLimitReached ? 'bg-red-500' : 'bg-gradient-to-r from-purple-500 to-blue-500'
-                    }`}
-                    style={{ 
-                      width: `${Math.min(((subscription.usage.charactersCount || 0) / (subscription.usage.charactersLimit || 1)) * 100, 100)}%` 
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Error Messages */}
-        {errors.length > 0 && (
-          <Alert className="mb-6 border-red-200 bg-red-50">
-            <AlertDescription>
-              <ul className="list-disc list-inside space-y-1">
-                {errors.map((error, index) => (
-                  <li key={index} className="text-red-700">{error}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
+        <div className="max-w-4xl mx-auto bg-white/95 backdrop-blur-[20px] rounded-[32px] p-12 shadow-[0_30px_80px_rgba(0,0,0,0.12)] border border-white/30 animate-slide-in-scale relative overflow-hidden">
+          {/* Top gradient bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-400 via-orange-400 via-blue-400 via-purple-400 to-cyan-400 bg-[length:300%_100%] animate-gradient-flow"></div>
+          
+          {/* Character Preview */}
+          <div className="absolute top-7 left-7 w-20 h-20 rounded-full bg-gradient-to-br from-red-400 to-orange-400 flex items-center justify-center text-[32px] animate-preview-pulse">
+            {characterEmoji}
+          </div>
+          
+          {/* Progress Indicator */}
+          <div className="absolute top-7 right-7 flex items-center gap-3 text-sm font-semibold text-gray-500">
+            <span>{filledFields}/{totalFields} fields</span>
+            <div className="w-25 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-red-400 to-orange-400 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${progressPercentage}%` }}
+              ></div>
+            </div>
+          </div>
 
-        {/* Child Profile Selection */}
-        {childProfiles.length === 0 ? (
-          <Card className="mb-6 bg-white shadow-lg border-0">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2">
-                <span className="text-2xl">👶</span>
-                No Child Profiles Found
-              </CardTitle>
-              <p className="text-gray-600 mt-2">
-                Create a child profile first to personalize the character for your little one.
-              </p>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Button 
+          {/* Header */}
+          <div className="text-center mb-10 animate-fade-in-down">
+            <h1 className="text-[42px] font-bold bg-gradient-to-br from-red-400 to-purple-400 bg-clip-text text-transparent mb-3 relative">
+              Create New Character
+              <span className="absolute -right-12 -top-2 text-2xl animate-sparkle">✨</span>
+            </h1>
+            <p className="text-gray-500 text-lg">Bring your imagination to life with a unique story character</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-red-600">{error}</p>
+            </div>
+          )}
+
+          {/* Show child profile creation prompt if no profiles exist */}
+          {childProfiles.length === 0 ? (
+            <div className="bg-gradient-to-br from-orange-50 to-rose-50 border border-orange-200 rounded-lg p-6 text-center mb-6 animate-section-slide-in">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-rose-500 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <span className="text-white text-2xl">👶</span>
+              </div>
+              <h3 className="text-xl font-bold text-orange-700 mb-2">Create a Child Profile First!</h3>
+              <p className="text-orange-600 mb-4">You need to create a child profile before designing characters.</p>
+              <button
+                type="button"
                 onClick={() => setShowChildProfileModal(true)}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white px-6 py-2 rounded-lg font-medium transition-all duration-300"
               >
                 Create Child Profile
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Child Profile Selection */}
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">👶</span>
-                  Select Child Profile
-                </CardTitle>
-                <p className="text-gray-600 mt-2">
-                  Choose which child this character is for, or create a new profile.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              {/* Child Profile Section */}
+              <div className="mb-8 animate-section-slide-in" style={{ animationDelay: '0.1s' }}>
+                <div className="mb-6">
+                  <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                    Child Profile <span className="text-red-500 text-base">*</span>
+                  </label>
                   <select
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    name="childProfileId"
                     value={formData.childProfileId}
-                    onChange={(e) => handleInputChange('childProfileId', e.target.value)}
+                    onChange={handleChange}
+                    className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px appearance-none bg-[url('data:image/svg+xml,%3csvg%20xmlns%3d%27http%3a//www.w3.org/2000/svg%27%20fill%3d%27none%27%20viewBox%3d%270%200%2020%2020%27%3e%3cpath%20stroke%3d%27%236b7280%27%20stroke-linecap%3d%27round%27%20stroke-linejoin%3d%27round%27%20stroke-width%3d%271.5%27%20d%3d%27m6%208%204%204%204-4%27/%3e%3c/svg%3e')] bg-[right_12px_center] bg-no-repeat bg-[length:16px] pr-12"
                     required
                   >
-                    <option value="">Select a child profile...</option>
+                    <option value="">Select a child profile</option>
                     {childProfiles.map((profile) => (
                       <option key={profile.id} value={profile.id}>
                         {profile.name} (Age {profile.age})
                       </option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowChildProfileModal(true)}
+                    className="text-red-400 text-sm font-semibold inline-flex items-center gap-2 mt-2 transition-all duration-300 p-2 rounded-xl bg-red-50 hover:bg-red-100 hover:translate-x-1 before:content-['+'] before:text-lg before:font-bold"
+                  >
+                    Add New Child Profile
+                  </button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowChildProfileModal(true)}
-                  className="w-full"
-                >
-                  Create New Child Profile
-                </Button>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Basic Information */}
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">📝</span>
-                  Basic Information
-                </CardTitle>
-                <p className="text-gray-600 mt-2">
-                  Let&apos;s start with the basics about your character.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Character Name *
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                {/* Character Name */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.2s' }}>
+                  <div className="mb-6">
+                    <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                      Character Name <span className="text-red-500 text-base">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px"
+                      placeholder="Enter character name"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Species */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.3s' }}>
+                  <div className="mb-6">
+                    <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                      Species <span className="text-red-500 text-base">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="species"
+                      value={formData.species}
+                      onChange={handleChange}
+                      className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px"
+                      placeholder="e.g., Human, Dragon, Unicorn, Robot"
+                      required
+                    />
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {[
+                        { emoji: '🧑', name: 'Human' },
+                        { emoji: '🐉', name: 'Dragon' },
+                        { emoji: '🦄', name: 'Unicorn' },
+                        { emoji: '🤖', name: 'Robot' },
+                        { emoji: '🧚', name: 'Fairy' },
+                        { emoji: '🧙', name: 'Wizard' }
+                      ].map((species) => (
+                        <div
+                          key={species.name}
+                          onClick={() => handleSpeciesChipClick(species.name)}
+                          className="px-4 py-2 bg-gradient-to-br from-slate-50 to-slate-200 border border-gray-200 rounded-2xl text-[13px] text-gray-500 cursor-pointer transition-all duration-300 relative overflow-hidden hover:bg-gradient-to-br hover:from-red-400 hover:to-orange-400 hover:text-white hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(255,107,107,0.3)] before:absolute before:top-0 before:-left-full before:w-full before:h-full before:bg-gradient-to-r before:from-transparent before:via-red-100/20 before:to-transparent before:transition-all before:duration-500 hover:before:left-full"
+                        >
+                          {species.emoji} {species.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Character Age */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.4s' }}>
+                  <div className="mb-6">
+                    <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                      Age <span className="text-red-500 text-base">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="age"
+                      value={formData.age}
+                      onChange={handleChange}
+                      className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px"
+                      placeholder="e.g., Young child, Teen, Adult"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Personality Traits */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.5s' }}>
+                  <div className="mb-6">
+                    <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                      Personality Traits
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      {[
+                        { emoji: '😤', name: 'Brave', value: 'brave' },
+                        { emoji: '😊', name: 'Kind', value: 'kind' },
+                        { emoji: '🤔', name: 'Curious', value: 'curious' },
+                        { emoji: '😄', name: 'Funny', value: 'funny' },
+                        { emoji: '🧠', name: 'Wise', value: 'wise' },
+                        { emoji: '🗺️', name: 'Adventurous', value: 'adventurous' }
+                      ].map((trait) => (
+                        <div
+                          key={trait.value}
+                          onClick={() => handleTraitClick(trait.value)}
+                          className={`p-3 bg-white border-2 border-gray-200 rounded-2xl text-center text-sm font-medium cursor-pointer transition-all duration-300 ${
+                            formData.personalityTraits.includes(trait.value)
+                              ? 'bg-gradient-to-br from-red-400 to-orange-400 text-white border-red-400 scale-105'
+                              : 'text-gray-500 hover:border-red-400 hover:text-red-400 hover:scale-105 hover:shadow-[0_4px_15px_rgba(255,107,107,0.2)]'
+                          }`}
+                        >
+                          {trait.emoji} {trait.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Width Fields */}
+              <div className="space-y-6">
+                {/* Physical Features */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.6s' }}>
+                  <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                    Physical Features <span className="text-red-500 text-base">*</span>
                   </label>
-                  <input
-                    type="text"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., Luna the Brave"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
+                  <textarea
+                    name="physicalFeatures"
+                    value={formData.physicalFeatures}
+                    onChange={handleChange}
+                    className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px min-h-[120px] resize-y font-[inherit]"
+                    placeholder="Describe appearance: height, hair/fur color, eye color, distinctive features..."
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Age
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., 8 years old, or Ancient"
-                    value={formData.age}
-                    onChange={(e) => handleInputChange('age', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Character Type *
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {characterTypes.map((type) => (
-                      <label
-                        key={type.value}
-                        className={`relative flex flex-col items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                          formData.species === type.value
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-purple-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="species"
-                          value={type.value}
-                          checked={formData.species === type.value}
-                          onChange={(e) => handleInputChange('species', e.target.value)}
-                          className="sr-only"
-                        />
-                        <span className="text-2xl mb-2">{type.emoji}</span>
-                        <span className="font-medium text-center">{type.label}</span>
-                        <span className="text-xs text-gray-500 text-center mt-1">{type.description}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Appearance */}
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">👁️</span>
-                  Appearance
-                </CardTitle>
-                <p className="text-gray-600 mt-2">
-                  Describe what your character looks like.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Physical Features
-                  </label>
-                  <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., Bright blue eyes, curly golden hair, tall and graceful..."
-                    value={formData.physicalFeatures}
-                    onChange={(e) => handleInputChange('physicalFeatures', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                {/* Clothing & Accessories */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.7s' }}>
+                  <label className="block text-[15px] font-semibold text-gray-700 mb-2">
                     Clothing & Accessories
                   </label>
                   <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., A shimmering purple cape, silver crown, magical boots..."
+                    name="clothingAccessories"
                     value={formData.clothingAccessories}
-                    onChange={(e) => handleInputChange('clothingAccessories', e.target.value)}
+                    onChange={handleChange}
+                    className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px min-h-[120px] resize-y font-[inherit]"
+                    placeholder="What does the character wear? Any special accessories?"
                   />
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Personality */}
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">💝</span>
-                  Personality
-                </CardTitle>
-                <p className="text-gray-600 mt-2">
-                  What makes your character special and unique?
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Personality Traits *
+                {/* Personality Description */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.8s' }}>
+                  <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                    Personality Description <span className="text-red-500 text-base">*</span>
                   </label>
                   <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., Brave, kind, curious, always ready to help friends..."
-                    value={formData.personalityTraits}
-                    onChange={(e) => handleInputChange('personalityTraits', e.target.value)}
+                    name="personalityDescription"
+                    value={formData.personalityDescription}
+                    onChange={handleChange}
+                    className="w-full p-[18px] border-2 border-gray-200 rounded-[20px] text-base bg-white transition-all duration-[400ms] focus:outline-none focus:border-red-400 focus:shadow-[0_0_0_6px_rgba(255,107,107,0.1)] focus:-translate-y-0.5 hover:border-gray-300 hover:-translate-y-px min-h-[120px] resize-y font-[inherit]"
+                    placeholder="Describe the character's personality in detail..."
                     required
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Favorite Things
-                  </label>
-                  <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., Loves strawberry ice cream, collecting shiny rocks, singing songs..."
-                    value={formData.favoriteThings}
-                    onChange={(e) => handleInputChange('favoriteThings', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Special Abilities
-                  </label>
-                  <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., Can talk to animals, flies on a magic carpet, super strength..."
-                    value={formData.specialAbilities}
-                    onChange={(e) => handleInputChange('specialAbilities', e.target.value)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Communication Style */}
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">💬</span>
-                  Communication Style
-                </CardTitle>
-                <p className="text-gray-600 mt-2">
-                  How does your character talk and express themselves?
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Speaking Style
-                  </label>
-                  <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., Speaks in rhymes, uses old-fashioned words, talks very excitedly..."
-                    value={formData.speakingStyle}
-                    onChange={(e) => handleInputChange('speakingStyle', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Favorite Phrases
-                  </label>
-                  <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                    placeholder="e.g., Let us go on an adventure!, That is magical!"
-                    value={formData.favoritePhrases}
-                    onChange={(e) => handleInputChange('favoritePhrases', e.target.value)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Advanced Options Toggle */}
-            <div className="text-center">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                className="text-purple-600 border-purple-600 hover:bg-purple-50"
-              >
-                {showAdvancedOptions ? 'Hide' : 'Show'} Advanced Options
-              </Button>
-            </div>
-
-            {/* Advanced Options */}
-            {showAdvancedOptions && (
-              <Card className="bg-white shadow-lg border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <span className="text-2xl">⚙️</span>
-                    Advanced Options
-                  </CardTitle>
-                  <p className="text-gray-600 mt-2">
-                    Add more depth to your character with these optional details.
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Backstory
-                    </label>
-                    <textarea
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-32 resize-none"
-                      placeholder="e.g., Born in a magical kingdom, found as a baby by forest animals..."
-                      value={formData.backstory}
-                      onChange={(e) => handleInputChange('backstory', e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Goals & Dreams
-                    </label>
-                    <textarea
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                      placeholder="e.g., Wants to become the greatest explorer, hopes to find the lost treasure..."
-                      value={formData.goals}
-                      onChange={(e) => handleInputChange('goals', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Quirks & Habits
-                      </label>
-                      <textarea
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                        placeholder="e.g., Always hums while walking, collects buttons..."
-                        value={formData.quirks}
-                        onChange={(e) => handleInputChange('quirks', e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Catchphrase
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="e.g., Adventure awaits!"
-                        value={formData.catchphrase}
-                        onChange={(e) => handleInputChange('catchphrase', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push('/characters')}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting || isCharacterLimitReached}
-                className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Creating Character...
-                  </div>
-                ) : (
-                  'Create Character ✨'
-                )}
-              </Button>
-            </div>
-          </form>
-        )}
+              {/* Form Actions */}
+              <div className="flex gap-5 mt-12 justify-center">
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="px-9 py-[18px] border-2 border-gray-200 bg-slate-50 text-gray-500 rounded-[20px] text-base font-semibold cursor-pointer transition-all duration-[400ms] min-w-[160px] hover:bg-gray-200 hover:-translate-y-1 hover:shadow-[0_8px_25px_rgba(0,0,0,0.1)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-9 py-[18px] border-none bg-gradient-to-br from-red-400 to-orange-400 text-white rounded-[20px] text-base font-semibold cursor-pointer transition-all duration-[400ms] min-w-[160px] shadow-[0_8px_30px_rgba(255,107,107,0.3)] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(255,107,107,0.4)] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none relative overflow-hidden"
+                >
+                  {isSubmitting && (
+                    <div className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                  )}
+                  {isSubmitting ? 'Creating Character...' : 'Create Character'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
 
         {/* Child Profile Modal */}
-        {showChildProfileModal && (
-          <ChildProfileModal
-            isOpen={showChildProfileModal}
-            onClose={() => setShowChildProfileModal(false)}
-            onSuccess={handleChildProfileSuccess}
-          />
-        )}
-      </main>
-    </div>
-  )
+        <ChildProfileModal
+          isOpen={showChildProfileModal}
+          onClose={() => setShowChildProfileModal(false)}
+          onSuccess={handleChildProfileSuccess}
+        />
+      </div>
+    </>
+  );
 }
