@@ -2,10 +2,62 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Character, CharacterAppearance } from '@/types'
+import { Character, STORY_CATEGORY_MAP, STORY_WRITING_STYLE_MAP, type StoryCategoryLabel, type StoryWritingStyleLabel } from '@/types'
 import { generateStoryWithOpenAI, generateIllustrationPrompt, generateIllustration } from '@/lib/openai'
 import { smartImageUpload } from '@/lib/storage-smart'
 import { randomUUID } from 'crypto'
+
+// Extend the session type to include the user id
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string
+      name?: string | null
+      email?: string | null
+      image?: string | null
+    }
+  }
+}
+
+// Type for story with includes
+type StoryWithRelations = {
+  id: string
+  title: string
+  theme: string
+  summary: string
+  language?: string
+  category?: string
+  writingStyle?: string
+  readerAge?: string
+  StoryPage: Array<{
+    id: string
+    pageNumber: number
+    content: string
+    characterDescriptions: Record<string, unknown>
+  }>
+  StoryCharacter: Array<{
+    Character: {
+      id: string
+      name: string
+      species: string
+      age: string
+      physicalFeatures: string
+      clothingAccessories: string
+      personalityTraits: string[]
+      personalityDescription: string
+      specialAbilities: string
+      favoriteThings: string
+      speakingStyle: string
+      favoritePhrases: string[]
+      userId: string
+      childProfileId: string
+      createdAt: Date
+      updatedAt: Date
+      imageUrl?: string | null
+      appearances: unknown[]
+    }
+  }>
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +67,18 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { theme, characterIds, childProfileId, storyDetails, moralLesson, pageCount = 5 } = body
+    const { 
+      theme, 
+      characterIds, 
+      childProfileId, 
+      storyDetails, 
+      moralLesson, 
+      pageCount = 5,
+      language = 'English',
+      storyType = 'Bedtime Story: A classic.',
+      writingStyle = 'Imaginative: Creative, whimsical, fantastical elements.',
+      readerAge = '5 – 7 years'
+    } = body
 
     // Validate input
     if (!theme || !characterIds || !Array.isArray(characterIds) || characterIds.length === 0) {
@@ -25,6 +88,10 @@ export async function POST(req: NextRequest) {
     if (!childProfileId) {
       return NextResponse.json({ error: 'Missing required field: childProfileId' }, { status: 400 })
     }
+
+    // Convert UI labels to enum values
+    const categoryValue = STORY_CATEGORY_MAP[storyType as StoryCategoryLabel] || 'BedtimeStory'
+    const writingStyleValue = STORY_WRITING_STYLE_MAP[writingStyle as StoryWritingStyleLabel] || 'Imaginative'
 
     // Get characters from database
     const prismaCharacters = await prisma.character.findMany({
@@ -53,7 +120,7 @@ export async function POST(req: NextRequest) {
     // Convert Prisma characters to Character type
     const characters: Character[] = prismaCharacters.map((char: typeof prismaCharacters[0]) => ({
       ...char,
-      appearances: (char.appearances as unknown as CharacterAppearance[]) || []
+      appearances: (char.appearances as unknown as Record<string, unknown>[]) || []
     }))
 
     console.log('Generating story with OpenAI...')
@@ -87,6 +154,10 @@ export async function POST(req: NextRequest) {
         theme,
         summary: storyData.summary,
         moralLesson,
+        language: language as string,
+        category: categoryValue as string,
+        writingStyle: writingStyleValue as string,
+        readerAge,
         userId: session.user.id,
         childProfileId,
         updatedAt: new Date(),
@@ -114,7 +185,7 @@ export async function POST(req: NextRequest) {
           }
         }
       }
-    })
+    }) as StoryWithRelations
 
     console.log('Story saved to database with ID:', story.id)
 
@@ -133,10 +204,14 @@ export async function POST(req: NextRequest) {
         title: story.title,
         theme: story.theme,
         summary: story.summary,
+        language: story.language,
+        category: story.category,
+        writingStyle: story.writingStyle,
+        readerAge: story.readerAge,
         pages: story.StoryPage,
-        characters: story.StoryCharacter.map((sc: typeof story.StoryCharacter[0]) => ({
+        characters: story.StoryCharacter.map((sc) => ({
           ...sc.Character,
-          appearances: (sc.Character.appearances as unknown as CharacterAppearance[]) || []
+          appearances: (sc.Character.appearances as Record<string, unknown>[]) || []
         }))
       }
     })

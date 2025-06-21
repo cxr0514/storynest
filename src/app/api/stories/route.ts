@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user || !('id' in session.user)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const childProfileId = searchParams.get('childProfileId')
 
     const whereCondition: { userId: string; childProfileId?: string } = {
-      userId: session.user.id
+      userId: (session.user as { id: string }).id
     }
 
     if (childProfileId) {

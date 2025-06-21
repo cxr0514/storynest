@@ -1,181 +1,154 @@
-// Character Types
+/** Story creation enums - matching Prisma schema */
+export type StoryLanguage =
+  | 'English' | 'Spanish' | 'French' | 'German' | 'Italian'
+  | 'Portuguese' | 'Dutch' | 'Swedish' | 'Japanese' | 'Chinese'
+
+// UI labels for story categories
+export type StoryCategoryLabel =
+  | 'Bedtime Story: A classic.'
+  | 'Fable: Moral lessons, talking animals.'
+  | 'Fairytale: Magic, enchanting creatures, happy endings.'
+  | 'Adventure: Exciting journeys, young heroes, challenges.'
+  | 'Educational: Informative, age-appropriate facts, engaging.'
+  | 'Mystery: Puzzles, clues, child detectives.'
+  | 'Science fiction: Futuristic, imaginative worlds, exploration.'
+  | 'Realistic fiction: Everyday life, relatable characters, emotions.'
+
+// Prisma enum values for story categories
+export type StoryCategory = 
+  | 'BedtimeStory' | 'Fable' | 'Fairytale' | 'Adventure'
+  | 'Educational' | 'Mystery' | 'ScienceFiction' | 'RealisticFiction'
+
+// UI labels for writing styles
+export type StoryWritingStyleLabel =
+  | 'Imaginative: Creative, whimsical, fantastical elements.'
+  | 'Funny: Humorous, witty, light-hearted tone.'
+  | 'Heartwarming: Uplifting, positive messages, emotional connections.'
+  | 'Action-packed: Fast-paced, thrilling, adventure-filled.'
+  | 'Nostalgic: Familiar settings, relatable experiences, memories.'
+  | 'Empowering: Confidence-building, inspiring, strong characters.'
+  | 'Spooky: Mild scares, eerie settings, suspenseful.'
+  | 'Educational: Informative, engaging, age-appropriate lessons.'
+
+// Prisma enum values for writing styles
+export type StoryWritingStyle =
+  | 'Imaginative' | 'Funny' | 'Heartwarming' | 'ActionPacked'
+  | 'Nostalgic' | 'Empowering' | 'Spooky' | 'Educational'
+
+// Mapping functions for UI labels to enum values
+export const STORY_CATEGORY_MAP: Record<StoryCategoryLabel, StoryCategory> = {
+  'Bedtime Story: A classic.': 'BedtimeStory',
+  'Fable: Moral lessons, talking animals.': 'Fable',
+  'Fairytale: Magic, enchanting creatures, happy endings.': 'Fairytale',
+  'Adventure: Exciting journeys, young heroes, challenges.': 'Adventure',
+  'Educational: Informative, age-appropriate facts, engaging.': 'Educational',
+  'Mystery: Puzzles, clues, child detectives.': 'Mystery',
+  'Science fiction: Futuristic, imaginative worlds, exploration.': 'ScienceFiction',
+  'Realistic fiction: Everyday life, relatable characters, emotions.': 'RealisticFiction',
+}
+
+export const STORY_WRITING_STYLE_MAP: Record<StoryWritingStyleLabel, StoryWritingStyle> = {
+  'Imaginative: Creative, whimsical, fantastical elements.': 'Imaginative',
+  'Funny: Humorous, witty, light-hearted tone.': 'Funny',
+  'Heartwarming: Uplifting, positive messages, emotional connections.': 'Heartwarming',
+  'Action-packed: Fast-paced, thrilling, adventure-filled.': 'ActionPacked',
+  'Nostalgic: Familiar settings, relatable experiences, memories.': 'Nostalgic',
+  'Empowering: Confidence-building, inspiring, strong characters.': 'Empowering',
+  'Spooky: Mild scares, eerie settings, suspenseful.': 'Spooky',
+  'Educational: Informative, engaging, age-appropriate lessons.': 'Educational',
+}
+
+// Reverse mapping functions for enum values to UI labels
+export const STORY_CATEGORY_REVERSE_MAP: Record<StoryCategory, StoryCategoryLabel> = {
+  'BedtimeStory': 'Bedtime Story: A classic.',
+  'Fable': 'Fable: Moral lessons, talking animals.',
+  'Fairytale': 'Fairytale: Magic, enchanting creatures, happy endings.',
+  'Adventure': 'Adventure: Exciting journeys, young heroes, challenges.',
+  'Educational': 'Educational: Informative, age-appropriate facts, engaging.',
+  'Mystery': 'Mystery: Puzzles, clues, child detectives.',
+  'ScienceFiction': 'Science fiction: Futuristic, imaginative worlds, exploration.',
+  'RealisticFiction': 'Realistic fiction: Everyday life, relatable characters, emotions.',
+}
+
+export const STORY_WRITING_STYLE_REVERSE_MAP: Record<StoryWritingStyle, StoryWritingStyleLabel> = {
+  'Imaginative': 'Imaginative: Creative, whimsical, fantastical elements.',
+  'Funny': 'Funny: Humorous, witty, light-hearted tone.',
+  'Heartwarming': 'Heartwarming: Uplifting, positive messages, emotional connections.',
+  'ActionPacked': 'Action-packed: Fast-paced, thrilling, adventure-filled.',
+  'Nostalgic': 'Nostalgic: Familiar settings, relatable experiences, memories.',
+  'Empowering': 'Empowering: Confidence-building, inspiring, strong characters.',
+  'Spooky': 'Spooky: Mild scares, eerie settings, suspenseful.',
+  'Educational': 'Educational: Informative, engaging, age-appropriate lessons.',
+}
+
+// Core model interfaces
+export interface User {
+  id: string
+  name?: string
+  email: string
+  emailVerified?: Date
+  image?: string
+  credits: number
+  plan: string
+  planExpiresAt?: Date
+  stripeCustomerId?: string
+  storiesGenerated: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface ChildProfile {
+  id: string
+  name: string
+  age: number
+  interests: string[]
+  userId: string
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface Character {
   id: string
   name: string
   species: string
   age: string
-  
-  // Appearance
   physicalFeatures: string
   clothingAccessories: string
-  
-  // Personality
   personalityTraits: string[]
   personalityDescription: string
-  
-  // Background
   specialAbilities: string
   favoriteThings: string
-  
-  // Voice & Speech
   speakingStyle: string
   favoritePhrases: string[]
-  
-  // Consistency tracking
-  ageGroups: string[]
-  appearances: CharacterAppearance[]
-  consistencyScore: number
-  
-  // Metadata
+  userId: string
+  childProfileId: string
   createdAt: Date
   updatedAt: Date
-  childProfileId: string
-  userId: string
-}
-
-export interface CharacterAppearance {
-  storyId: string
   imageUrl?: string
-  description: string
-  consistency_score?: number
-  createdAt: Date
 }
 
-// Story Types
 export interface Story {
   id: string
   title: string
-  theme: StoryTheme
-  
-  // Content
-  StoryPage: StoryPage[]
+  theme: string
   summary: string
   moralLesson?: string
-  
-  // Characters
-  StoryCharacter: { Character: Character }[]
-  characterIds: string[]
-  
-  // Progress
   currentPage: number
   isCompleted: boolean
-  
-  // Metadata
+  progressPercent: number
+  content?: string
+  language: StoryLanguage
+  category: StoryCategory
+  writingStyle: StoryWritingStyle
+  readerAge: string
+  userId: string
+  childProfileId: string
   createdAt: Date
   updatedAt: Date
-  childProfileId: string
-  ageGroup: string
 }
 
-export interface StoryPage {
-  id: string
-  pageNumber: number
-  content: string
-  imageUrl?: string
-  imagePrompt?: string
-  characterDescriptions: Record<string, string> // characterId -> description for this page
-}
-
-export type StoryTheme = 
-  | 'fantasy' 
-  | 'space' 
-  | 'ocean' 
-  | 'magic' 
-  | 'adventure' 
-  | 'circus' 
-  | 'dreams' 
-  | 'creative'
-
-// Child Profile Types
-export interface ChildProfile {
+export interface StoryTheme {
   id: string
   name: string
-  age: number
-  
-  // Preferences - matches database schema
-  interests: string[] // Database field name
-  
-  // Optional fields that might be added later
-  favoriteThemes?: StoryTheme[]
-  favoriteCharacters?: string[] // character IDs
-  readingLevel?: 'beginner' | 'intermediate' | 'advanced'
-  
-  // Progress tracking - optional for now
-  storiesRead?: number
-  charactersCreated?: number
-  favoriteGenres?: string[]
-  
-  // Metadata
-  createdAt: Date
-  updatedAt: Date
-  userId: string // matches database
-}
-
-// User Types
-export interface User {
-  id: string
-  email: string
-  name: string
-  
-  // Subscription
-  planTier: 'free' | 'starter' | 'premium' | 'lifetime'
-  storiesRemaining: number
-  subscriptionEndsAt?: Date
-  
-  // Profiles
-  childProfiles: ChildProfile[]
-  
-  // Usage tracking
-  totalStoriesCreated: number
-  totalCharactersCreated: number
-  
-  // Metadata
-  createdAt: Date
-  lastLoginAt: Date
-}
-
-// Story Generation Types
-export interface StoryGenerationRequest {
-  childProfileId: string
-  theme: StoryTheme
-  characterIds: string[]
-  customPrompt?: string
-  moralLesson?: string
-  targetLength: 'short' | 'medium' | 'long'
-  pageCount?: number
-}
-
-export interface StoryGenerationResponse {
-  story: Omit<Story, 'id' | 'createdAt' | 'updatedAt'>
-  estimatedReadingTime: number
-  characterConsistencyScore: number
-}
-
-// Character Consistency Types
-export interface CharacterConsistencyPrompt {
-  characterId: string
-  baseDescription: string
-  previousAppearances: CharacterAppearance[]
-  storyContext: string
-}
-
-export interface CharacterConsistencyValidation {
-  characterId: string
-  score: number // 0-100
-  issues: string[]
-  suggestions: string[]
-}
-
-// NextAuth session types
-export interface ExtendedUser {
-  id: string
-  name?: string | null
-  email?: string | null
-  image?: string | null
-}
-
-declare module "next-auth" {
-  interface Session {
-    user: ExtendedUser
-  }
+  description: string
 }

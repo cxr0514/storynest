@@ -5,6 +5,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+// Export the OpenAI client for use in other modules
+export const openaiClient = openai
+
 export async function generateStoryWithOpenAI(
   request: StoryGenerationRequest,
   characters: Character[]
