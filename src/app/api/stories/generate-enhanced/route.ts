@@ -25,7 +25,7 @@ function log(level: 'info' | 'error' | 'warn', message: string, data?: unknown) 
 
 // Type definitions
 interface StoryRequest {
-  childId: string
+  childProfileId: string
   theme: string
   characterIds: string[]
   language?: string
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     // Parse and validate request
     const body = await req.json() as StoryRequest
     const {
-      childId,
+      childProfileId,
       theme,
       characterIds,
       language = 'English',
@@ -107,13 +107,13 @@ export async function POST(req: NextRequest) {
     // Verify child profile access
     const childProfile = await prisma.childProfile.findFirst({
       where: {
-        id: childId,
+        id: childProfileId,
         userId: session.user.id
       }
     })
 
     if (!childProfile) {
-      log('error', `Child profile not found: ${childId}`)
+      log('error', `Child profile not found: ${childProfileId}`)
       return NextResponse.json({ 
         success: false,
         error: 'Child profile not found or access denied.',
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     log('info', `Story generated: "${storyJSON.title}" with ${storyJSON.pages.length} pages`)
 
     // Generate images if requested
-    let imageResults = { successCount: 0, failureCount: 0, images: [] as any[] }
+    let imageResults: { successCount: number; failureCount: number; images: { pageNumber: number; url: string; prompt: string }[] } = { successCount: 0, failureCount: 0, images: [] }
     if (includeImages) {
       imageResults = await generateStoryImages(storyJSON, characters)
       log('info', `Image generation: ${imageResults.successCount} success, ${imageResults.failureCount} failures`)
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
       readerAge,
       characters,
       characterIds,
-      childId,
+      childProfileId,
       userId: session.user.id,
       imageResults
     })
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
 function validateStoryRequest(request: StoryRequest): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
 
-  if (!request.childId || typeof request.childId !== 'string') {
+  if (!request.childProfileId || typeof request.childProfileId !== 'string') {
     errors.push('Valid child profile ID is required')
   }
 
@@ -309,8 +309,8 @@ async function generateStoryWithAI(opts: {
   }
 }
 
-async function generateStoryImages(storyJSON: GeneratedStory, characters: Character[]) {
-  const results = { successCount: 0, failureCount: 0, images: [] as any[] }
+async function generateStoryImages(storyJSON: GeneratedStory, characters: Character[]): Promise<{ successCount: number; failureCount: number; images: { pageNumber: number; url: string; prompt: string }[] }> {
+  const results: { successCount: number; failureCount: number; images: { pageNumber: number; url: string; prompt: string }[] } = { successCount: 0, failureCount: 0, images: [] }
   
   for (const page of storyJSON.pages) {
     try {
@@ -367,9 +367,9 @@ async function saveStoryToDatabase(opts: {
   readerAge: string
   characters: Character[]
   characterIds: string[]
-  childId: string
+  childProfileId: string
   userId: string
-  imageResults: any
+  imageResults: { successCount: number; failureCount: number; images: { pageNumber: number; url: string; prompt: string }[] }
 }): Promise<string> {
   const storyId = randomUUID()
   
@@ -383,7 +383,8 @@ async function saveStoryToDatabase(opts: {
         summary: opts.storyJSON.summary,
         moralLesson: opts.storyJSON.moral || null,
         userId: opts.userId,
-        childProfileId: opts.childId,
+        childProfileId: opts.childProfileId,
+        updatedAt: new Date(),
       }
     })
 
@@ -403,11 +404,12 @@ async function saveStoryToDatabase(opts: {
           content: page.text,
           characterDescriptions: characterDescriptions,
           storyId: storyId,
+          updatedAt: new Date(),
         }
       })
 
       // Add illustration if available
-      const pageImage = opts.imageResults.images.find((img: any) => img.pageNumber === page.number)
+      const pageImage = opts.imageResults.images.find((img: { pageNumber: number; url: string; prompt: string }) => img.pageNumber === page.number)
       if (pageImage) {
         await prisma.illustration.create({
           data: {
@@ -416,6 +418,7 @@ async function saveStoryToDatabase(opts: {
             prompt: pageImage.prompt,
             storyId: storyId,
             storyPageId: pageId,
+            updatedAt: new Date(),
           }
         })
       }

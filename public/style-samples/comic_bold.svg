@@ -1,0 +1,62 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Bold comic gradient -->
+    <radialGradient id="comicGrad" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" style="stop-color:#fff200"/>
+      <stop offset="100%" style="stop-color:#ff6b35"/>
+    </radialGradient>
+    <!-- Comic book halftone pattern -->
+    <pattern id="halftone" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1.5" fill="#ff1744" opacity="0.3"/>
+    </pattern>
+    <!-- Bold outline filter -->
+    <filter id="boldOutline" x="-20%" y="-20%" width="140%" height="140%">
+      <feMorphology operator="dilate" radius="2"/>
+      <feFlood flood-color="#000"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+  </defs>
+  
+  <!-- Dynamic background with comic energy -->
+  <rect width="120" height="120" fill="url(#comicGrad)"/>
+  <rect width="120" height="120" fill="url(#halftone)"/>
+  
+  <!-- Bold comic character head -->
+  <ellipse cx="60" cy="45" rx="22" ry="25" fill="#fdbcb4" stroke="#000" stroke-width="3" filter="url(#boldOutline)"/>
+  
+  <!-- Exaggerated comic eyes -->
+  <ellipse cx="52" cy="40" rx="6" ry="8" fill="#fff" stroke="#000" stroke-width="2"/>
+  <ellipse cx="68" cy="40" rx="6" ry="8" fill="#fff" stroke="#000" stroke-width="2"/>
+  <circle cx="52" cy="42" r="3" fill="#000"/>
+  <circle cx="68" cy="42" r="3" fill="#000"/>
+  <circle cx="53" cy="41" r="1" fill="#fff"/>
+  <circle cx="69" cy="41" r="1" fill="#fff"/>
+  
+  <!-- Bold comic hair with dynamic styling -->
+  <path d="M38 35 Q45 20 60 25 Q75 20 82 35 Q78 30 70 32 Q60 28 50 32 Q42 30 38 35" 
+        fill="#ff9800" stroke="#000" stroke-width="2"/>
+  
+  <!-- Dynamic comic mouth -->
+  <ellipse cx="60" cy="52" rx="8" ry="4" fill="#d32f2f" stroke="#000" stroke-width="2"/>
+  <ellipse cx="60" cy="50" rx="6" ry="2" fill="#fff"/>
+  
+  <!-- Bold comic body -->
+  <rect x="45" y="65" width="30" height="30" rx="5" fill="#2196f3" stroke="#000" stroke-width="3"/>
+  
+  <!-- Comic book action lines -->
+  <path d="M10 20 L25 10" stroke="#000" stroke-width="2" opacity="0.7"/>
+  <path d="M15 25 L30 15" stroke="#000" stroke-width="2" opacity="0.7"/>
+  <path d="M95 20 L110 10" stroke="#000" stroke-width="2" opacity="0.7"/>
+  <path d="M90 25 L105 15" stroke="#000" stroke-width="2" opacity="0.7"/>
+  
+  <!-- Comic "POW!" style burst -->
+  <polygon points="20,80 25,75 30,80 25,85" fill="#ffeb3b" stroke="#000" stroke-width="2"/>
+  <polygon points="100,85 105,80 110,85 105,90" fill="#ffeb3b" stroke="#000" stroke-width="2"/>
+  
+  <!-- Bold comic book border with speed lines -->
+  <rect x="2" y="2" width="116" height="116" fill="none" stroke="#000" stroke-width="4"/>
+  
+  <!-- Action bubbles -->
+  <circle cx="85" cy="25" r="4" fill="#fff" stroke="#000" stroke-width="2" opacity="0.8"/>
+  <circle cx="35" cy="100" r="3" fill="#fff" stroke="#000" stroke-width="2" opacity="0.8"/>
+</svg>

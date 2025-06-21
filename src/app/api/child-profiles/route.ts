@@ -3,6 +3,51 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { v4 as uuidv4 } from 'uuid'
+import { getSignedImageUrl } from '@/lib/storage-cloud'
+
+// Helper function to fix broken avatar URLs by generating signed URLs
+async function fixBrokenAvatarUrls(profiles: { id: string; name: string; avatarUrl: string | null; [key: string]: unknown }[]) {
+  const fixedProfiles = []
+  
+  for (const profile of profiles) {
+    const fixedProfile = { ...profile }
+    
+    // Check if avatar URL exists and is a Wasabi URL
+    if (profile.avatarUrl && profile.avatarUrl.includes('wasabisys.com')) {
+      try {
+        // Test if the URL is accessible
+        const testResponse = await fetch(profile.avatarUrl, { method: 'HEAD' })
+        
+        if (testResponse.status === 403) {
+          console.log(`🔧 Fixing avatar URL for ${profile.name} (403 error)`)
+          
+          // Extract the S3 key from the URL
+          const urlParts = profile.avatarUrl.split('/')
+          const key = urlParts.slice(-2).join('/') // Get "avatars/filename.png"
+          
+          // Generate a signed URL
+          const signedUrl = await getSignedImageUrl(key)
+          
+          // Update the profile in the database
+          await prisma.childProfile.update({
+            where: { id: profile.id },
+            data: { avatarUrl: signedUrl }
+          })
+          
+          fixedProfile.avatarUrl = signedUrl
+          console.log(`✅ Fixed avatar URL for ${profile.name}`)
+        }
+      } catch (error) {
+        console.error(`❌ Failed to fix avatar for ${profile.name}:`, error)
+        // Keep the original URL if we can't fix it
+      }
+    }
+    
+    fixedProfiles.push(fixedProfile)
+  }
+  
+  return fixedProfiles
+}
 
 export async function GET() {
   try {
@@ -20,7 +65,10 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json(childProfiles)
+    // Fix any broken avatar URLs
+    const fixedProfiles = await fixBrokenAvatarUrls(childProfiles)
+
+    return NextResponse.json(fixedProfiles)
   } catch (error) {
     console.error('Error fetching child profiles:', error)
     return NextResponse.json({ error: 'Failed to fetch child profiles' }, { status: 500 })

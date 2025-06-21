@@ -1,0 +1,50 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Cinematic gradient background -->
+    <radialGradient id="cinemaGrad" cx="50%" cy="30%" r="80%">
+      <stop offset="0%" style="stop-color:#2a1810"/>
+      <stop offset="100%" style="stop-color:#0a0a0a"/>
+    </radialGradient>
+    <!-- Film grain texture -->
+    <filter id="filmGrain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence baseFrequency="0.9" numOctaves="1" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feBlend mode="overlay" in="SourceGraphic"/>
+    </filter>
+    <!-- Cinematic lens effect -->
+    <filter id="lensEffect">
+      <feGaussianBlur stdDeviation="0.5"/>
+      <feOffset dx="1" dy="1"/>
+    </filter>
+  </defs>
+  
+  <!-- Background with film aesthetic -->
+  <rect width="120" height="120" fill="url(#cinemaGrad)" filter="url(#filmGrain)"/>
+  
+  <!-- Cinematic character silhouette -->
+  <ellipse cx="60" cy="45" rx="18" ry="20" fill="#4a3728" filter="url(#lensEffect)"/>
+  
+  <!-- Dramatic lighting on face -->
+  <ellipse cx="55" cy="40" rx="8" ry="10" fill="#8b6f47" opacity="0.8"/>
+  <ellipse cx="52" cy="38" rx="3" ry="4" fill="#d4af7a" opacity="0.6"/>
+  
+  <!-- Cinematic body -->
+  <rect x="45" y="60" width="30" height="35" rx="8" fill="#2c2c2c" filter="url(#lensEffect)"/>
+  
+  <!-- Film strip decoration -->
+  <rect x="10" y="10" width="100" height="8" fill="#333" opacity="0.7"/>
+  <rect x="15" y="12" width="6" height="4" fill="#000"/>
+  <rect x="25" y="12" width="6" height="4" fill="#000"/>
+  <rect x="35" y="12" width="6" height="4" fill="#000"/>
+  <rect x="79" y="12" width="6" height="4" fill="#000"/>
+  <rect x="89" y="12" width="6" height="4" fill="#000"/>
+  <rect x="99" y="12" width="6" height="4" fill="#000"/>
+  
+  <!-- Lens flare effect -->
+  <circle cx="85" cy="35" r="3" fill="#fff" opacity="0.4"/>
+  <circle cx="87" cy="33" r="1.5" fill="#fff" opacity="0.6"/>
+  
+  <!-- Cinematic aspect ratio bars -->
+  <rect x="0" y="0" width="120" height="15" fill="#000" opacity="0.8"/>
+  <rect x="0" y="105" width="120" height="15" fill="#000" opacity="0.8"/>
+</svg>

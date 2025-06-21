@@ -10,6 +10,7 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   callbacks: {
@@ -23,12 +24,8 @@ export const authOptions: NextAuthOptions = {
     },
     async redirect({ url, baseUrl }) {
       console.log('🔄 Redirect Callback:', { url, baseUrl })
-      // If the URL is relative, make it absolute
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      // If it's the same origin, allow it
-      if (new URL(url).origin === baseUrl) return url
-      // Otherwise, redirect to dashboard
-      return `${baseUrl}/dashboard`
+      // Always send user to home after login
+      return baseUrl
     },
     session: async ({ session, token }) => {
       console.log('🎯 Session Callback:', { session, token })
@@ -76,20 +73,27 @@ export const authOptions: NextAuthOptions = {
   },
   logger: {
     error(code, metadata) {
-      console.error('❌ NextAuth Error:', code, metadata)
+      const timestamp = new Date().toISOString()
+      console.error(`[${timestamp}] ❌ NextAuth Error:`, code, metadata)
       // Log more details for OAuth errors
-      if (code.includes('OAUTH') || code.includes('SIGNIN')) {
-        console.error('🚨 OAuth Error Details:', JSON.stringify(metadata, null, 2))
+      if (code.includes('OAUTH') || code.includes('SIGNIN') || code.includes('CALLBACK')) {
+        console.error(`[${timestamp}] 🚨 OAuth Error Details:`, JSON.stringify(metadata, null, 2))
+      }
+      // Log to file or external service in production
+      if (process.env.NODE_ENV === 'production') {
+        // TODO: Add external logging service
       }
     },
     warn(code) {
-      console.warn('⚠️  NextAuth Warning:', code)
+      const timestamp = new Date().toISOString()
+      console.warn(`[${timestamp}] ⚠️  NextAuth Warning:`, code)
     },
     debug(code, metadata) {
-      console.log('🐛 NextAuth Debug:', code, metadata)
+      const timestamp = new Date().toISOString()
+      console.log(`[${timestamp}] 🐛 NextAuth Debug:`, code, metadata)
       // Log callback-related debug info
-      if (code.includes('CALLBACK') || code.includes('OAUTH')) {
-        console.log('🔍 OAuth Debug Details:', JSON.stringify(metadata, null, 2))
+      if (code.includes('CALLBACK') || code.includes('OAUTH') || code.includes('SIGNIN')) {
+        console.log(`[${timestamp}] 🔍 OAuth Debug Details:`, JSON.stringify(metadata, null, 2))
       }
     },
   },

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { ChildProfileModal } from '@/components/child-profile-modal';
+import { STYLES, getStyleByKey } from '@/lib/styleMap';
 
 interface ChildProfile {
   id: string;
@@ -29,6 +30,7 @@ interface CharacterFormData {
   quirks: string;
   catchphrase: string;
   illustrationPrompt?: string;
+  styleName: string;
 }
 
 const initialFormData: CharacterFormData = {
@@ -48,7 +50,8 @@ const initialFormData: CharacterFormData = {
   goals: '',
   quirks: '',
   catchphrase: '',
-  illustrationPrompt: ''
+  illustrationPrompt: '',
+  styleName: 'storybook_soft'
 };
 
 export default function CreateCharacterPage() {
@@ -184,6 +187,7 @@ export default function CreateCharacterPage() {
         speakingStyle: formData.speakingStyle || '',
         favoritePhrases: formData.favoritePhrases ? formData.favoritePhrases.split(',').map(p => p.trim()).filter(Boolean) : [],
         childProfileId: formData.childProfileId,
+        styleName: formData.styleName,
         ageGroups: ['3-6', '7-10'],
         appearances: []
       };
@@ -533,6 +537,52 @@ export default function CreateCharacterPage() {
                       placeholder="e.g., Young child, Teen, Adult"
                       required
                     />
+                  </div>
+                </div>
+
+                {/* Art Style */}
+                <div className="animate-section-slide-in" style={{ animationDelay: '0.45s' }}>
+                  <div className="mb-6">
+                    <label className="block text-[15px] font-semibold text-gray-700 mb-2">
+                      Art Style <span className="text-red-500 text-base">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      {STYLES.map((style) => (
+                        <div
+                          key={style.key}
+                          onClick={() => setFormData(prev => ({ ...prev, styleName: style.key }))}
+                          className={`p-4 bg-white border-2 rounded-2xl cursor-pointer transition-all duration-300 ${
+                            formData.styleName === style.key
+                              ? 'bg-gradient-to-br from-red-400 to-orange-400 text-white border-red-400 scale-105 shadow-lg'
+                              : 'border-gray-200 text-gray-700 hover:border-red-400 hover:scale-105 hover:shadow-[0_4px_15px_rgba(255,107,107,0.2)]'
+                          }`}
+                        >
+                          <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 mb-3 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                              <img 
+                                src={`/style-samples/${style.key}.svg`} 
+                                alt={`${style.label} preview`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="font-semibold text-sm mb-1">{style.label}</div>
+                            <div className={`text-xs ${
+                              formData.styleName === style.key ? 'text-white opacity-90' : 'text-gray-500'
+                            }`}>
+                              {style.promptPrefix}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 text-sm text-gray-600">
+                      {getStyleByKey(formData.styleName) && (
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <span className="font-medium text-gray-700">Selected Style: </span>
+                          <span className="text-gray-600">{getStyleByKey(formData.styleName)?.promptPrefix}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

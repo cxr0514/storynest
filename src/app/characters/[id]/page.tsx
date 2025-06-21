@@ -19,6 +19,8 @@ interface Character {
   favoriteThings: string
   speakingStyle: string
   favoritePhrases: string[]
+  styleName: string
+  avatarUrl?: string
   ChildProfile: {
     id: string
     name: string
@@ -112,18 +114,42 @@ export default function CharacterDetailPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
       <Header />
       <div className="container mx-auto px-4 py-8">
-        {/* Header with back button */}
+        {/* Header with back button and avatar */}
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
             <Button 
               variant="outline" 
               onClick={() => router.push('/characters')}
             >
               ← Back to Characters
             </Button>
+            
+            {/* Character Avatar */}
+            <div className="flex-shrink-0">
+              {character.avatarUrl ? (
+                <img 
+                  src={character.avatarUrl} 
+                  alt={`${character.name} avatar`}
+                  className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <div className={`w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-2xl border-4 border-white shadow-lg ${character.avatarUrl ? 'hidden' : ''}`}>
+                🎭
+              </div>
+            </div>
+            
             <div>
               <h1 className="text-3xl font-bold text-gray-800">{character.name}</h1>
               <p className="text-gray-600">Created for {character.ChildProfile.name}</p>
+              {character.styleName && (
+                <p className="text-sm text-purple-600 font-medium">
+                  Art Style: {character.styleName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex gap-3">

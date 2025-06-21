@@ -19,13 +19,20 @@ export function CustomPrismaAdapter(p: PrismaClient) {
             name: user.name,
             email: user.email,
             image: user.image,
-            emailVerified: user.emailVerified,
+            email_verified: user.emailVerified,
             createdAt: currentTime,
             updatedAt: currentTime,
           },
         })
         console.log('✅ User created successfully:', newUser)
-        return newUser
+        // Return user with correct field mapping for NextAuth
+        return {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          emailVerified: newUser.email_verified,
+          image: newUser.image,
+        }
       } catch (error) {
         console.error('❌ Error creating user:', error)
         throw error
@@ -51,10 +58,10 @@ export function CustomPrismaAdapter(p: PrismaClient) {
         const newAccount = await p.account.create({
           data: {
             id: accountId,
-            userId: account.userId,
+            user_id: account.userId,
             type: account.type,
             provider: account.provider,
-            providerAccountId: account.providerAccountId,
+            provider_account_id: account.providerAccountId,
             refresh_token: account.refresh_token,
             access_token: account.access_token,
             expires_at: account.expires_at,
@@ -68,6 +75,31 @@ export function CustomPrismaAdapter(p: PrismaClient) {
         return newAccount
       } catch (error) {
         console.error('❌ Error linking account:', error)
+        throw error
+      }
+    },
+    async getUserByAccount({ providerAccountId, provider }: { providerAccountId: string; provider: string }) {
+      console.log('🔍 CustomPrismaAdapter.getUserByAccount called with:', { providerAccountId, provider })
+      try {
+        const account = await p.account.findUnique({
+          where: {
+            provider_provider_account_id: {
+              provider: provider,
+              provider_account_id: providerAccountId,
+            },
+          },
+          include: { User: true },
+        })
+        console.log('✅ getUserByAccount result:', account)
+        return account?.User ? {
+          id: account.User.id,
+          name: account.User.name,
+          email: account.User.email,
+          emailVerified: account.User.email_verified,
+          image: account.User.image,
+        } : null
+      } catch (error) {
+        console.error('❌ Error getting user by account:', error)
         throw error
       }
     },

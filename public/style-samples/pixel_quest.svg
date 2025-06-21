@@ -1,0 +1,59 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Pixel perfect grid pattern -->
+    <pattern id="pixelGrid" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="8" height="8" fill="#2a4d3a"/>
+      <rect x="0" y="0" width="7" height="7" fill="#3a6d4a"/>
+    </pattern>
+    <!-- 8-bit style gradient -->
+    <linearGradient id="pixelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7fb069"/>
+      <stop offset="50%" style="stop-color:#4a7c59"/>
+      <stop offset="100%" style="stop-color:#2d5a37"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Pixel art background -->
+  <rect width="120" height="120" fill="url(#pixelGrid)"/>
+  
+  <!-- Pixel character head (blocky) -->
+  <rect x="44" y="28" width="32" height="32" fill="#ffb3ba" stroke="#d4828a" stroke-width="1"/>
+  
+  <!-- Pixel eyes -->
+  <rect x="50" y="38" width="4" height="4" fill="#000"/>
+  <rect x="66" y="38" width="4" height="4" fill="#000"/>
+  <rect x="51" y="38" width="2" height="2" fill="#fff"/>
+  <rect x="67" y="38" width="2" height="2" fill="#fff"/>
+  
+  <!-- Pixel hair -->
+  <rect x="48" y="24" width="24" height="8" fill="#8b4513"/>
+  <rect x="44" y="28" width="4" height="4" fill="#8b4513"/>
+  <rect x="72" y="28" width="4" height="4" fill="#8b4513"/>
+  
+  <!-- Pixel body -->
+  <rect x="48" y="60" width="24" height="24" fill="#4682b4"/>
+  <rect x="52" y="64" width="16" height="4" fill="#5a9bd4"/>
+  
+  <!-- Pixel arms -->
+  <rect x="40" y="64" width="8" height="16" fill="#ffb3ba"/>
+  <rect x="72" y="64" width="8" height="16" fill="#ffb3ba"/>
+  
+  <!-- 8-bit style decorative elements -->
+  <rect x="8" y="8" width="8" height="8" fill="#ffff99"/>
+  <rect x="104" y="8" width="8" height="8" fill="#ffff99"/>
+  <rect x="8" y="104" width="8" height="8" fill="#ffff99"/>
+  <rect x="104" y="104" width="8" height="8" fill="#ffff99"/>
+  
+  <!-- Pixel heart (classic game UI element) -->
+  <rect x="20" y="20" width="4" height="4" fill="#ff69b4"/>
+  <rect x="16" y="24" width="4" height="4" fill="#ff69b4"/>
+  <rect x="20" y="24" width="4" height="4" fill="#ff69b4"/>
+  <rect x="24" y="24" width="4" height="4" fill="#ff69b4"/>
+  <rect x="20" y="28" width="4" height="4" fill="#ff69b4"/>
+  
+  <!-- Retro game border -->
+  <rect x="0" y="0" width="120" height="4" fill="#000"/>
+  <rect x="0" y="116" width="120" height="4" fill="#000"/>
+  <rect x="0" y="0" width="4" height="120" fill="#000"/>
+  <rect x="116" y="0" width="4" height="120" fill="#000"/>
+</svg>

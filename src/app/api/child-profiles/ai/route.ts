@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const imageGenTime = Date.now() - imageGenStart
     console.log(`✅ Avatar generated in ${imageGenTime}ms`)
 
-    if (!image.data[0]?.url) {
+    if (!image.data || !image.data[0]?.url) {
       throw new Error('Failed to generate avatar image')
     }
 
@@ -110,12 +110,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ 
       success: true,
+      id: newProfile.id, // Return the ID for easy access
       profile: {
         id: newProfile.id,
         name: newProfile.name,
         age: newProfile.age,
         interests: newProfile.interests,
-        avatarUrl: newProfile.avatarUrl
+        avatarUrl: uploadResult.url // Use the upload result directly
       },
       metadata: {
         imageGenerationTime: imageGenTime,

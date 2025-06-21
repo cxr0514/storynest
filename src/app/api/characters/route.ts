@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getPlanLimits } from '@/lib/plan-limits'
+import { generateCharacterAvatar } from '@/lib/avatar'
 
 export async function GET(req: NextRequest) {
   try {
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       speakingStyle,
       favoritePhrases,
       childProfileId,
+      styleName,
       ageGroups,
       appearances
     } = body
@@ -132,6 +134,7 @@ export async function POST(req: NextRequest) {
         favoritePhrases: Array.isArray(favoritePhrases) ? favoritePhrases : [],
         ageGroups: Array.isArray(ageGroups) ? ageGroups : ['3-6', '7-10'],
         appearances: Array.isArray(appearances) ? appearances : [],
+        styleName: styleName || 'storybook_soft',
         userId: session.user.id,
         childProfileId,
         updatedAt: new Date()
@@ -140,6 +143,29 @@ export async function POST(req: NextRequest) {
         ChildProfile: true
       }
     })
+
+    // Generate avatar in the background (don't block response)
+    if (character.id) {
+      generateCharacterAvatar({
+        id: character.id,
+        name: character.name,
+        species: character.species,
+        physicalFeatures: character.physicalFeatures,
+        styleName: character.styleName
+      }).then(avatarUrl => {
+        if (avatarUrl) {
+          // Update character with avatar URL
+          prisma.character.update({
+            where: { id: character.id },
+            data: { avatarUrl }
+          }).catch(error => {
+            console.error('Error updating character with avatar URL:', error)
+          })
+        }
+      }).catch(error => {
+        console.error('Error generating character avatar:', error)
+      })
+    }
 
     return NextResponse.json(character)
   } catch (error) {

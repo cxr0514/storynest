@@ -196,9 +196,25 @@ export default function CharactersLibrary() {
                       <div className="absolute bottom-3 right-2 text-xl animate-bounce-slow">✨</div>
                       <div className="absolute top-4 right-4 text-lg animate-float-delayed">🌟</div>
                     </div>
-                    <span className="text-5xl group-hover:animate-bounce-gentle transition-all duration-300">
+                    
+                    {/* Show generated avatar if available, fallback to emoji */}
+                    {character.avatarUrl ? (
+                      <img 
+                        src={character.avatarUrl} 
+                        alt={`${character.name} avatar`}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        onError={(e) => {
+                          // Fallback to emoji if image fails to load
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    
+                    <span className={`text-5xl group-hover:animate-bounce-gentle transition-all duration-300 ${character.avatarUrl ? 'hidden' : ''}`}>
                       {typeEmojis[character.species] || '👤'}
                     </span>
+                    
                     <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-xs font-bold px-3 py-1 rounded-full shadow-md">
                       <span className={`${consistencyScore >= 95 ? 'text-green-600' : consistencyScore >= 85 ? 'text-orange-600' : 'text-red-600'}`}>
                         {consistencyScore}% ✨

@@ -6,22 +6,9 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { randomUUID } from 'crypto'
 import { smartImageUpload } from '@/lib/storage-smart'
+import { logger } from '@/lib/logger'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
-
-// Enhanced logging for debugging
-function log(level: 'info' | 'error' | 'warn', message: string, data?: unknown) {
-  const timestamp = new Date().toISOString()
-  const logMessage = `[${timestamp}] [AI-STORY] [${level.toUpperCase()}] ${message}`
-  
-  if (level === 'error') {
-    console.error(logMessage, data || '')
-  } else if (level === 'warn') {
-    console.warn(logMessage, data || '')
-  } else {
-    console.log(logMessage, data || '')
-  }
-}
 
 // Extend the session type to include the user id
 declare module 'next-auth' {
@@ -37,14 +24,15 @@ declare module 'next-auth' {
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
+  const requestId = `story-ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   
   try {
-    log('info', 'AI story generation request received')
+    logger.api('AI story generation request received', { requestId })
     
     // Verify authentication
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
-      log('error', 'Unauthorized request - no valid session')
+      logger.error('Unauthorized request - no valid session', undefined, { requestId })
       return NextResponse.json({ 
         success: false,
         error: 'Authentication required. Please sign in to generate stories.',

@@ -48,6 +48,8 @@ model Character {
   childProfileId         String
   createdAt              DateTime         @default(now())
   updatedAt              DateTime
+  avatarUrl              String?
+  styleName              String           @default("storybook_soft")
   ChildProfile           ChildProfile     @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
   User                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   StoryCharacter         StoryCharacter[]
@@ -61,6 +63,7 @@ model ChildProfile {
   userId           String
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @default(now())
+  avatarUrl        String?
   Character        Character[]
   User             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   Story            Story[]

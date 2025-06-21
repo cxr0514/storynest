@@ -126,10 +126,46 @@ export async function uploadImageToS3(
       
       await workingClient.send(command)
       
-      // Return the public URL using the working endpoint
+      // Try to verify the upload by testing public access
       const publicUrl = `${workingEndpoint}/${process.env.WASABI_BUCKET_NAME}/${fileName}`
-      console.log(`Successfully uploaded to: ${publicUrl}`)
-      return publicUrl
+      console.log(`Image uploaded to: ${publicUrl}`)
+      
+      // Test if the image is publicly accessible
+      try {
+        const testResponse = await fetch(publicUrl, { method: 'HEAD' })
+        if (testResponse.ok) {
+          console.log(`✅ Image is publicly accessible: ${publicUrl}`)
+          return publicUrl
+        } else {
+          console.warn(`⚠️ Image uploaded but not publicly accessible (${testResponse.status}), generating signed URL`)
+          
+          // Generate a signed URL instead
+          const getCommand = new GetObjectCommand({
+            Bucket: process.env.WASABI_BUCKET_NAME!,
+            Key: fileName,
+          })
+          
+          const signedUrl = await getSignedUrl(workingClient, getCommand, { 
+            expiresIn: 31536000 // 1 year expiration
+          })
+          console.log(`✅ Generated signed URL: ${signedUrl}`)
+          return signedUrl
+        }
+      } catch (testError) {
+        console.warn(`⚠️ Could not test public access, generating signed URL:`, testError)
+        
+        // Generate a signed URL as fallback
+        const getCommand = new GetObjectCommand({
+          Bucket: process.env.WASABI_BUCKET_NAME!,
+          Key: fileName,
+        })
+        
+        const signedUrl = await getSignedUrl(workingClient, getCommand, { 
+          expiresIn: 31536000 // 1 year expiration
+        })
+        console.log(`✅ Generated signed URL: ${signedUrl}`)
+        return signedUrl
+      }
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'

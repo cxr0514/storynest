@@ -58,6 +58,7 @@ export default function StoryReader() {
   const [deviceType] = useState(getDeviceType())
   const [pageStartTime, setPageStartTime] = useState(Date.now())
   const [hasTrackedReadingStart, setHasTrackedReadingStart] = useState(false)
+  const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({})
 
   // Track session end when component unmounts
   useEffect(() => {
@@ -244,6 +245,18 @@ export default function StoryReader() {
   const nextPage = () => goToPage(currentPage + 1)
   const prevPage = () => goToPage(currentPage - 1)
 
+  // Reset image loading state when page changes
+  useEffect(() => {
+    if (story && story.pages[currentPage]?.illustration) {
+      const illustrationId = story.pages[currentPage].illustration!.id
+      // Reset loading state for the current page illustration
+      setImageLoadingStates(prev => ({
+        ...prev,
+        [illustrationId]: undefined
+      }))
+    }
+  }, [currentPage, story])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
@@ -368,6 +381,12 @@ export default function StoryReader() {
                   fill
                   className="object-cover"
                   onLoad={() => {
+                    // Mark image as loaded
+                    setImageLoadingStates(prev => ({
+                      ...prev,
+                      [currentPageData.illustration!.id]: true
+                    }))
+                    
                     // Track illustration load performance
                     const loadTime = PerformanceTracker.endMeasurement(`illustration-${currentPageData.illustration!.id}`)
                     
@@ -384,6 +403,12 @@ export default function StoryReader() {
                     }
                   }}
                   onError={(e) => {
+                    // Mark image as failed
+                    setImageLoadingStates(prev => ({
+                      ...prev,
+                      [currentPageData.illustration!.id]: false
+                    }))
+                    
                     // Track illustration load failure
                     PerformanceTracker.endMeasurement(`illustration-${currentPageData.illustration!.id}`)
                     
@@ -405,13 +430,15 @@ export default function StoryReader() {
                   }}
                 />
                 
-                {/* Loading overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-8 h-8 bg-white/30 rounded-lg animate-pulse mx-auto mb-2"></div>
-                    <p className="text-gray-600 text-sm">Loading illustration...</p>
+                {/* Loading overlay - only show when image hasn't loaded yet */}
+                {imageLoadingStates[currentPageData.illustration.id] !== true && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-8 h-8 bg-white/30 rounded-lg animate-pulse mx-auto mb-2"></div>
+                      <p className="text-gray-600 text-sm">Loading illustration...</p>
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 {/* Illustration attribution */}
                 <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">

@@ -2,36 +2,24 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
-// Enhanced logging for debugging
-function log(level: 'info' | 'error' | 'warn', message: string, data?: unknown) {
-  const timestamp = new Date().toISOString()
-  const logMessage = `[${timestamp}] [AI-CHAT] [${level.toUpperCase()}] ${message}`
-  
-  if (level === 'error') {
-    console.error(logMessage, data || '')
-  } else if (level === 'warn') {
-    console.warn(logMessage, data || '')
-  } else {
-    console.log(logMessage, data || '')
-  }
-}
-
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
+  const requestId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   
   try {
-    log('info', 'AI chat request received')
+    logger.api('AI chat request received', { requestId })
     
     // Authentication (optional for chat helper)
     const session = await getServerSession(authOptions)
     if (session) {
-      log('info', `Authenticated user: ${session.user?.email}`)
+      logger.oauth(`Authenticated user: ${session.user?.email || 'unknown'}`, { requestId, userId: session.user?.email || 'unknown' })
     } else {
-      log('info', 'Anonymous chat request')
+      logger.info('Anonymous chat request', { requestId })
     }
 
     // Parse and validate request
@@ -41,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      log('error', 'Invalid request: No messages provided')
+      logger.error('Invalid request: No messages provided', undefined, { requestId })
       return NextResponse.json(
         { 
           success: false,
@@ -60,7 +48,7 @@ export async function POST(req: NextRequest) {
     )
 
     if (invalidMessages.length > 0) {
-      log('error', 'Invalid message format detected', invalidMessages)
+      logger.error('Invalid message format detected', undefined, { requestId, invalidMessages })
       return NextResponse.json(
         {
           success: false,
@@ -75,7 +63,7 @@ export async function POST(req: NextRequest) {
     const userContent = messages[messages.length - 1].content
     const conversationContext = messages.slice(-3) // Keep last 3 messages for context
 
-    log('info', `Processing chat request with ${messages.length} messages`)
+    logger.ai(`Processing chat request with ${messages.length} messages`, { requestId, messageCount: messages.length })
 
     // Enhanced system prompt for better story brainstorming
     const systemPrompt = `You are a magical story helper for children! Your job is to spark imagination and help kids brainstorm amazing story ideas.
@@ -105,7 +93,7 @@ Current conversation context: The child is brainstorming story ideas.`
         presence_penalty: 0.3,
       })
     } catch (openaiError) {
-      log('error', 'OpenAI API error', openaiError)
+      logger.error('OpenAI API error', openaiError, { requestId })
       return NextResponse.json(
         {
           success: false,
@@ -120,7 +108,8 @@ Current conversation context: The child is brainstorming story ideas.`
     
     // Log successful response
     const duration = Date.now() - startTime
-    log('info', `Chat response generated successfully in ${duration}ms`)
+    logger.performance('AI chat completion', startTime, { requestId, messageCount: messages.length })
+    logger.success(`Chat response generated successfully`, { requestId, duration: `${duration}ms`, model: 'gpt-4o-mini' })
     
     return NextResponse.json({ 
       success: true,
@@ -134,7 +123,7 @@ Current conversation context: The child is brainstorming story ideas.`
     
   } catch (error) {
     const duration = Date.now() - startTime
-    log('error', `Chat request failed after ${duration}ms`, error)
+    logger.error(`Chat request failed after ${duration}ms`, error, { requestId, duration: `${duration}ms` })
     
     return NextResponse.json(
       { 

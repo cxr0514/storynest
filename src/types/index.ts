@@ -102,6 +102,7 @@ export interface ChildProfile {
   name: string
   age: number
   interests: string[]
+  avatarUrl?: string
   userId: string
   createdAt: Date
   updatedAt: Date
@@ -122,6 +123,8 @@ export interface Character {
   favoritePhrases: string[]
   userId: string
   childProfileId: string
+  styleName: string
+  avatarUrl?: string
   createdAt: Date
   updatedAt: Date
   imageUrl?: string
