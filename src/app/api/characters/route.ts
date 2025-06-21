@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
-        subscription: {
+        plan: true,
+        Subscription: {
           select: {
             plan: true,
             status: true
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    const currentPlan = user?.subscription?.plan || 'free'
+    const currentPlan = user?.Subscription?.plan || user?.plan || 'free'
     const planLimits = getPlanLimits(currentPlan)
     
     // Count existing characters for this user
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
     // Create character
     const character = await prisma.character.create({
       data: {
+        id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name,
         species,
         age,
