@@ -224,8 +224,27 @@ export default function Dashboard() {
                     onClick={() => router.push(`/child/${profile.id}`)}
                   >
                     <CardContent className="flex items-center space-x-3 p-0">
-                      <div className="w-14 h-14 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center animate-bounce-gentle shadow-lg cartoon-shadow">
-                        <span className="text-white font-bold text-lg">{profile.name[0]}</span>
+                      <div className="w-14 h-14 rounded-full flex items-center justify-center animate-bounce-gentle shadow-lg cartoon-shadow overflow-hidden border-2 border-white">
+                        {profile.avatarUrl ? (
+                          <img
+                            src={profile.avatarUrl}
+                            alt={`${profile.name}'s avatar`}
+                            className="w-full h-full object-cover rounded-full"
+                            onError={(e) => {
+                              // Fallback to initial if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className={`w-full h-full bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center ${profile.avatarUrl ? 'hidden' : 'flex'}`}
+                          style={{ display: profile.avatarUrl ? 'none' : 'flex' }}
+                        >
+                          <span className="text-white font-bold text-lg">{profile.name[0]}</span>
+                        </div>
                       </div>
                       <div className="flex-1">
                         <h3 className="font-bold text-purple-800 text-lg">{profile.name} ✨</h3>

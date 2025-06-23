@@ -51,7 +51,7 @@ export async function GET(
       moralLesson: story.moralLesson,
       currentPage: story.currentPage,
       isCompleted: story.isCompleted,
-      readingProgress: story.readingProgress,
+      readingProgress: story.progressPercent, // Map progressPercent to readingProgress
       childProfileId: story.childProfileId,
       childProfile: story.ChildProfile,
       ageGroup: '3-8', // Default for now
@@ -101,7 +101,7 @@ export async function PATCH(
       data: {
         currentPage,
         isCompleted,
-        readingProgress,
+        progressPercent: readingProgress, // Map readingProgress to progressPercent
         updatedAt: new Date()
       }
     })
