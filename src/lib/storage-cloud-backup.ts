@@ -80,8 +80,7 @@ async function getWorkingS3Client(): Promise<{ client: any; endpoint: string; aw
       })).catch(() => {
         // We expect this to fail (404), but it proves connectivity
         return null
-      })
-      
+            
       await Promise.race([testPromise, timeoutPromise])
       console.log(`✅ Successfully connected to Wasabi endpoint: ${endpoint}`)
       return { client, endpoint, aws }
@@ -97,16 +96,14 @@ export async function uploadImageToS3(
   imageUrl: string,
   folder: string = 'illustrations'
 ): Promise<string> {
-  let workingClient: any = null
+  let workingClient: S3Client | null = null
   let workingEndpoint: string | null = null
-  let aws: any = null
   
   // First try to get a working S3 client
   try {
     const clientInfo = await getWorkingS3Client()
     workingClient = clientInfo.client
     workingEndpoint = clientInfo.endpoint
-    aws = clientInfo.aws
   } catch (connectionError) {
     console.error('No Wasabi endpoints available:', connectionError)
     // Immediately fall back to local storage
@@ -133,98 +130,140 @@ export async function uploadImageToS3(
       const response = await fetch(imageUrl, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'StoryNest/1.0 (Image downloader)'
+          'User-Agent': 'Mozilla/5.0 (compatible; StoryNest/1.0)'
         }
       })
       
       clearTimeout(timeout)
       
       if (!response.ok) {
-        throw new Error(`Failed to download image: ${response.status} ${response.statusText}`)
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`)
       }
-
-      const buffer = await response.arrayBuffer()
-      const fileName = `${folder}/${uuidv4()}.png`
-
-      // Upload to S3/Wasabi with retry logic built into the client
-      const uploadCommand = new aws.PutObjectCommand({
-        Bucket: process.env.WASABI_BUCKET_NAME!,
-        Key: fileName,
-        Body: new Uint8Array(buffer),
-        ContentType: 'image/png',
-        // Add some metadata for tracking
-        Metadata: {
-          'uploaded-at': new Date().toISOString(),
-          'source': 'storynest-app',
-          'original-url': imageUrl.substring(0, 200) // Truncate to avoid metadata limits
-        }
-      })
-
-      const result = await workingClient.send(uploadCommand)
-      console.log(`✅ Successfully uploaded to S3: ${fileName}`)
-
-      // Generate a signed URL for the uploaded file
-      const signedUrl = await aws.getSignedUrl(workingClient, new aws.GetObjectCommand({
-        Bucket: process.env.WASABI_BUCKET_NAME!,
-        Key: fileName,
-      }), { expiresIn: 86400 }) // 24 hours expiry
-
-      return signedUrl
-
-    } catch (error) {
-      lastError = error as Error
-      console.error(`❌ S3 upload attempt ${attempt} failed:`, lastError.message)
       
-      if (attempt === maxRetries) {
-        console.log('All S3 attempts failed, falling back to local storage...')
-        try {
-          return await saveFallbackImage(imageUrl, folder)
-        } catch (fallbackError) {
-          console.error('Fallback storage also failed:', fallbackError)
-          throw new Error('All storage options failed')
+      const imageBuffer = await response.arrayBuffer()
+      const fileName = `${folder}/${uuidv4()}.png`
+      
+      console.log(`Uploading to S3: ${fileName} (${imageBuffer.byteLength} bytes)`)
+      
+      // Upload to S3/Wasabi with retry logic built into the client
+      const command = new PutObjectCommand({
+        Bucket: process.env.WASABI_BUCKET_NAME!,
+        Key: fileName,
+        Body: Buffer.from(imageBuffer),
+        ContentType: 'image/png',
+        ACL: 'public-read',
+      })
+      
+      await workingClient.send(command)
+      
+      // Try to verify the upload by testing public access
+      const publicUrl = `${workingEndpoint}/${process.env.WASABI_BUCKET_NAME}/${fileName}`
+      console.log(`Image uploaded to: ${publicUrl}`)
+      
+      // Test if the image is publicly accessible
+      try {
+        const testResponse = await fetch(publicUrl, { method: 'HEAD' })
+        if (testResponse.ok) {
+          console.log(`✅ Image is publicly accessible: ${publicUrl}`)
+          return publicUrl
+        } else {
+          console.warn(`⚠️ Image uploaded but not publicly accessible (${testResponse.status}), generating signed URL`)
+          
+          // Generate a signed URL instead
+          const getCommand = new GetObjectCommand({
+            Bucket: process.env.WASABI_BUCKET_NAME!,
+            Key: fileName,
+          })
+          
+          const signedUrl = await getSignedUrl(workingClient, getCommand, { 
+            expiresIn: 31536000 // 1 year expiration
+          })
+          console.log(`✅ Generated signed URL: ${signedUrl}`)
+          return signedUrl
         }
-      } else {
-        // Wait before retrying (exponential backoff)
-        const waitTime = Math.pow(2, attempt) * 1000
-        console.log(`⏳ Waiting ${waitTime}ms before retry...`)
-        await new Promise(resolve => setTimeout(resolve, waitTime))
+      } catch (testError) {
+        console.warn(`⚠️ Could not test public access, generating signed URL:`, testError)
+        
+        // Generate a signed URL as fallback
+        const getCommand = new GetObjectCommand({
+          Bucket: process.env.WASABI_BUCKET_NAME!,
+          Key: fileName,
+        })
+        
+        const signedUrl = await getSignedUrl(workingClient, getCommand, { 
+          expiresIn: 31536000 // 1 year expiration
+        })
+        console.log(`✅ Generated signed URL: ${signedUrl}`)
+        return signedUrl
       }
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      lastError = error instanceof Error ? error : new Error(String(error))
+      console.error(`Upload attempt ${attempt} failed:`, errorMessage)
+      
+      // If this is the last attempt, break and try fallback
+      if (attempt === maxRetries) {
+        break
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.pow(2, attempt - 1) * 1000 // 1s, 2s, 4s delays
+      console.log(`Waiting ${delay}ms before retry...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
-
-  throw new Error(`Failed to upload image after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`)
+  
+  console.error('All upload attempts failed. Last error:', lastError)
+  
+  // Try fallback local storage as last resort
+  try {
+    console.log('Attempting fallback local storage...')
+    return await saveFallbackImage(imageUrl, folder)
+  } catch (fallbackError) {
+    console.error('Fallback storage also failed:', fallbackError)
+    throw new Error(`Failed to upload image after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}. Fallback storage also failed.`)
+  }
 }
 
 export async function getSignedImageUrl(key: string): Promise<string> {
+  let workingClient: S3Client | null = null
+  
+  // Try to get a working S3 client
   try {
-    const { client, aws } = await getWorkingS3Client()
-    
-    const command = new aws.GetObjectCommand({
+    const clientInfo = await getWorkingS3Client()
+    workingClient = clientInfo.client
+  } catch (connectionError) {
+    console.error('No Wasabi endpoints available for signed URL:', connectionError)
+    throw new Error('S3 storage unavailable for signed URL generation')
+  }
+
+  try {
+    const command = new GetObjectCommand({
       Bucket: process.env.WASABI_BUCKET_NAME!,
       Key: key,
     })
-
-    const signedUrl = await aws.getSignedUrl(client, command, { expiresIn: 86400 }) // 24 hours
+    
+    const signedUrl = await getSignedUrl(workingClient, command, { expiresIn: 3600 })
     return signedUrl
   } catch (error) {
-    console.error('Failed to generate signed URL:', error)
-    throw error
+    console.error('Error generating signed URL:', error)
+    throw new Error('Failed to generate signed URL')
   }
 }
 
 export async function uploadUserAvatar(imageFile: File, userId: string): Promise<string> {
-  let workingClient: any = null
+  let workingClient: S3Client | null = null
   let workingEndpoint: string | null = null
-  let aws: any = null
   
+  // First try to get a working S3 client
   try {
     const clientInfo = await getWorkingS3Client()
     workingClient = clientInfo.client
     workingEndpoint = clientInfo.endpoint
-    aws = clientInfo.aws
   } catch (connectionError) {
     console.error('No Wasabi endpoints available for avatar upload:', connectionError)
-    throw new Error('Cloud storage unavailable for avatar upload')
+    throw new Error('S3 storage unavailable for avatar upload')
   }
 
   const maxRetries = 3
@@ -232,46 +271,39 @@ export async function uploadUserAvatar(imageFile: File, userId: string): Promise
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Attempting avatar upload to ${workingEndpoint} (attempt ${attempt}/${maxRetries})`)
+      console.log(`Attempting to upload avatar to ${workingEndpoint} (attempt ${attempt}/${maxRetries})`)
       
-      const buffer = await imageFile.arrayBuffer()
-      const fileName = `avatars/${userId}/${uuidv4()}.${imageFile.type.split('/')[1] || 'png'}`
-
-      const uploadCommand = new aws.PutObjectCommand({
+      const fileName = `avatars/${userId}/${uuidv4()}.${imageFile.name.split('.').pop()}`
+      
+      const command = new PutObjectCommand({
         Bucket: process.env.WASABI_BUCKET_NAME!,
         Key: fileName,
-        Body: new Uint8Array(buffer),
+        Body: Buffer.from(await imageFile.arrayBuffer()),
         ContentType: imageFile.type,
-        Metadata: {
-          'uploaded-at': new Date().toISOString(),
-          'source': 'storynest-avatar',
-          'user-id': userId
-        }
+        ACL: 'public-read',
       })
-
-      await workingClient.send(uploadCommand)
-      console.log(`✅ Successfully uploaded avatar: ${fileName}`)
-
-      // Generate a signed URL for the uploaded avatar
-      const signedUrl = await aws.getSignedUrl(workingClient, new aws.GetObjectCommand({
-        Bucket: process.env.WASABI_BUCKET_NAME!,
-        Key: fileName,
-      }), { expiresIn: 86400 }) // 24 hours expiry
-
-      return signedUrl
-
-    } catch (error) {
-      lastError = error as Error
-      console.error(`❌ Avatar upload attempt ${attempt} failed:`, lastError.message)
       
-      if (attempt < maxRetries) {
-        // Wait before retrying (exponential backoff)
-        const waitTime = Math.pow(2, attempt) * 1000
-        console.log(`⏳ Waiting ${waitTime}ms before retry...`)
-        await new Promise(resolve => setTimeout(resolve, waitTime))
+      await workingClient.send(command)
+      
+      const publicUrl = `${workingEndpoint}/${process.env.WASABI_BUCKET_NAME}/${fileName}`
+      console.log(`Successfully uploaded avatar to: ${publicUrl}`)
+      return publicUrl
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      lastError = error instanceof Error ? error : new Error(String(error))
+      console.error(`Avatar upload attempt ${attempt} failed:`, errorMessage)
+      
+      if (attempt === maxRetries) {
+        break
       }
+      
+      const delay = Math.pow(2, attempt - 1) * 1000
+      console.log(`Waiting ${delay}ms before retry...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
-
+  
+  console.error('All avatar upload attempts failed. Last error:', lastError)
   throw new Error(`Failed to upload avatar after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`)
 }
